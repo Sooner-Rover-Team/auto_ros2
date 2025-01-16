@@ -11,3 +11,47 @@ Joining the Sooner Rover Team is simple! Just [hop in our Discord](https://disco
 It can be difficult to know where to start. Luckily, we have a list of [projects you can work on](https://github.com/orgs/Sooner-Rover-Team/projects/4/views/1)! Some of these have hidden progression or difficulties, so please discuss with Autonomous leadership before you start working on something new.
 
 For info about conventions (how we write/upload code, etc.), please see [our documentation on contributions](./CONTRIBUTING.md).
+
+## Launch the Code
+
+Launching the code is different depending on which Node or Launch File you're running. If you're just running a Rust Node individually, see the `Rust` section. Otherwise, continue with the instructions below...
+
+### Python
+
+To launch Python code, you typically use the `ros2` command. You'll need to source the ROS 2 scripts, which is done like so:
+
+```bash
+# you need to find where your ros2 `setup.bash` file is.
+#
+# this differs depending on how you installed it. 
+# mine is here:
+source /usr/lib64/ros2-jazzy/setup.bash
+
+# next, compile the scripts using `colcon`
+colcon build --symlink-install
+
+# you'll get an `install/` folder inside the `auto_ros2` repo!
+#
+# now you can source the ROS 2 workspace scripts:
+source install/local_setup.bash
+```
+
+Great, you're set up to run the code! Fair warning: **each time you open a new terminal, you'll need to `source` those files.**
+
+```bash
+# in ROS 2, you have to compile the Nodes before ROS 2 can run them.
+#
+# that means using `colcon`, like so:
+colcon build --symlink-install
+
+# now, you're all good to run a node:
+ros2 run node_name node_name
+```
+
+### Rust
+
+Rust is a bit easier. Make sure [it's installed](./CONTRIBUTING.md) and type:
+
+```bash
+cargo run
+```
