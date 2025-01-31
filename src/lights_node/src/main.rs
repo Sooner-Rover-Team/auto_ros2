@@ -1,10 +1,30 @@
 use std::time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
 
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
-    NodeOptions,
+    NodeOptions, AService, ServiceMapping, ServiceTypeName,
 };
-// use tracing::level_filters::LevelFilter;
+
+use feedback::*;
+
+/* The lights node provides a service so that the client can make a request to turn the lights a given color.
+The request information contains values representing:
+    RED
+    GREEN
+    BLUE
+    and a boolean for FLASHING.
+*/
+
+// Struct to hold the request information (values for red, green, blue, and boolean for flashing)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LightsRequest {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub flashing: bool,
+}
+impl Message for LightsRequest {}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
@@ -18,65 +38,66 @@ async fn main() {
     // init ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
 
-    // create the autonomous node
+    // create the lights node
     let mut node = create_node(&ros2_context);
-    rosout!(node, LogLevel::Info, "autonomous node is online!");
+    let service_qos = qos();
+    rosout!(node, LogLevel::Info, "lights node is online!");
 
-    // make some topic to 'chat' on
-    let chatter_topic = node
-        .create_topic(
-            &Name::new("/", "topic").unwrap(),
-            MessageTypeName::new("std_msgs", "String"),
-            &ros2_client::DEFAULT_SUBSCRIPTION_QOS,
+    // create server
+    let server = node
+        .create_server::<AService<LightsRequest, SendResult>>(
+            ServiceMapping::Enhanced,
+            &Name::new("/", "lights_service").unwrap(),
+            &ServiceTypeName::new("lights", "Lights"),
+            service_qos.clone(),
+            service_qos
         )
-        .expect("make chatter topic");
+        .expect("create server");
 
-    // and make a publisher for it
-    let publisher = node
-        .create_publisher::<String>(&chatter_topic, Some(qos()))
-        .expect("create publisher");
+    rosout!(node, LogLevel::Info, "server created!");
 
     // make the node do stuff
     spin(&mut node);
 
-    // finally, publish for ~15s
+    // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
+    let controller = RoverController:new(ipaddr, port).await.expect("Failed to create Rover Controller");
+    // Create a task
     tokio::task::spawn(async move {
         let start_time = Instant::now();
 
-        let mut msg_ct: u8 = 0;
-
-        // run for 15s after the task starts running
-        while start_time.elapsed() < std::time::Duration::from_secs(15) {
-            msg_ct += 1;
-            let _ = publisher
-                .async_publish(format!(
-                    "hey navigator... we started {} ms ago",
-                    start_time.elapsed().as_millis()
-                ))
-                .await
-                .inspect_err(|e| tracing::warn!("failed to publish! see: {e}"));
-
-            rosout!(node, LogLevel::Warn, "sent a message! msg_ct: {msg_ct}");
-
-            // sleep for 500ms each loop
-            tokio::time::sleep(Duration::from_millis(500)).await;
+        let server_stream = server.receive_request_stream().then(|result| async {
+            match result {
+                Ok((req_id, req)) => {
+                    async_publish!(node, LogLevel::Info, "received request: {req_id} {req}");
+                    // Parse incoming message into byte array based on feedback
+                    // let response = controller.send_led(&leds)
+                    let response = LightsResponse { success: true };
+                    let sr = server.send_response(req_id, response).await;
+                    if let Err(e) = sr {
+                        async_publish!(node, LogLevel::Error, "failed to send response: {e}");
+                    }
+                }
+                Err(e) => {
+                    async_publish!(node, LogLevel::Error, "failed to receive request: {e}");
+            }
         }
+        });
 
-        // after this prints, the future is Poll::Ready(()), so we're done with
-        // our task. this will stop running and won't run again.
-        tracing::info!("done publishing! see ya");
+        // run the server
+        server_stream.await;
+
     });
 
     tokio::time::sleep(Duration::from_secs(17)).await;
 
-    tracing::info!("autonomous node is shutting down...");
+    tracing::info!("lights node is shutting down...");
 }
 
-/// Creates the `autonomous_node`.
+/// Creates the `lights_node`.
 fn create_node(ctx: &Context) -> Node {
-    // make the autonomous node
+    // make the lights node
     ctx.new_node(
-        NodeName::new("/rustdds", "autonomous_node").expect("node naming"),
+        NodeName::new("/rustdds", "lights_node").expect("node naming"),
         NodeOptions::new().enable_rosout(true),
     )
     .expect("node creation")

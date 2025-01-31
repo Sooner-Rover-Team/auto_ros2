@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(autonomous_node)
+project(lights_node)
 
 find_package(ament_cmake REQUIRED)
 
