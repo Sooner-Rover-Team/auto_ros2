@@ -32,7 +32,7 @@ class ImageCaptureNode(Node):
         # Capture frame from camera
         ret, frame = self.cap.read()
         if not ret:
-            selg.get_logger().error("Failed to capture image")
+            self.get_logger().error("Failed to capture image")
             return
 
         # Convert cv2 Mat to ROS Image message
