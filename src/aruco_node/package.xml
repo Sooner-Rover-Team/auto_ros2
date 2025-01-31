@@ -3,12 +3,20 @@
 <package format="3">
   <name>aruco_node</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="tyler73750@gmail.com">roma</maintainer>
-  <license>Apache-2.0</license>
+  <description>TODO</description>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
+  <maintainer email="logan.m.murphy-11@ou.edu">Logan Murphy</maintainer>
+  <maintainer email="contact@barretts.club">Barrett Ray</maintainer>
+  <maintainer email="tyler73750@gmail.com">Tyler Roman</maintainer>
+
+  <license>TODO</license>
+  <<exec_depend>rclpy</exec_depend>
+  <<exec_depend>sensor_msgs</exec_depend>
+  <<exec_depend>cv_bridge</exec_depend>
+  <<exec_depend>vision_opencv</exec_depend>
+  <<exec_depend>opencv-python</exec_depend>
+
+  <!-- note: these are optional and only for testing -->
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
