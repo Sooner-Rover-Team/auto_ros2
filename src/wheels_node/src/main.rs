@@ -1,9 +1,10 @@
 use std::time::{Duration, Instant};
 use feedback::{Wheels, prelude::RoverController};
+use std::sync::mpsc;
 
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
-    NodeOptions,
+    NodeOptions, Subscription
 };
 // use tracing::level_filters::LevelFilter;
 
@@ -23,51 +24,61 @@ async fn main() {
     let mut node = create_node(&ros2_context);
     rosout!(node, LogLevel::Info, "wheels node is online!");
 
-    // make some topic to 'chat' on
-    let chatter_topic = node
+    // make sthe wheels topic
+    let wheels_topic = node
         .create_topic(
-            &Name::new("/", "topic").unwrap(),
+            &Name::new("/rover", "wheels").unwrap(),
             MessageTypeName::new("std_msgs", "String"),
             &ros2_client::DEFAULT_SUBSCRIPTION_QOS,
         )
-        .expect("make chatter topic");
+        .expect("create wheels topic");
 
-    // and make a publisher for it
-    let publisher = node
-        .create_publisher::<String>(&chatter_topic, Some(qos()))
-        .expect("create publisher");
+    // message channel to handle incoming data
+    // tx forwards messages recieved by topic
+    // rx processes messages on arrival
+    let (tx, rx) = mpsc::channel();
+
+    // subscribe to wheels topic and forward messages to the channel
+    let _subscriber: Subscription<String> = node.create_subscription(
+        &wheels_topic, 
+        Some(qos()) // Apply the Quality of Service settings.
+    ).expect("create subscription");
+
+    // ensures messges are processed correctly before being forwarded
+    // prevents ownership/borrow conflicts with rx
+    let rx_receiver: std::sync::mpsc::Receiver<String> = rx;
+    tokio::task::spawn(async move {
+        while let Ok(msg) = rx_receiver.recv() { // blocking call to receive messages
+            let _ = tx.send(msg).expect("Failed to send message"); // forward message to the channel
+        }
+    });
+
+    // microcontroller that is responsible for controlling wheels
+    // needs the microcontrollers' ip address and port
+    let controller = RoverController::new(ipaddr, port).await.expect("Failed to create RoverController");
+
+    // processes the recieved commands and sends the commands to the microcontroller
+    tokio::task::spawn(async move {
+        while let Ok(msg) = rx.recv() {
+            match parse_wheels_msg(&msg) { // parses the message into the correct data
+                Some(wheels) => {
+                    // if the message is valid, send the parsed wheel commands to the microcontroller.
+                    if let Err(e) = controller.send_wheels(&wheels).await {
+                        rosout!(node, LogLevel::Error, "Failed to send wheels command: {e}");
+                    }
+                }
+                None => {
+                    // log a warning if the message format is incorrect.
+                    rosout!(node, LogLevel::Warn, "Received invalid wheels message: {msg}");
+                }
+            }
+        }
+    });
 
     // make the node do stuff
     spin(&mut node);
 
-    // finally, publish for ~15s
-    tokio::task::spawn(async move {
-        let start_time = Instant::now();
-
-        let mut msg_ct: u8 = 0;
-
-        // run for 15s after the task starts running
-        while start_time.elapsed() < std::time::Duration::from_secs(15) {
-            msg_ct += 1;
-            let _ = publisher
-                .async_publish(format!(
-                    "hey navigator... we started {} ms ago",
-                    start_time.elapsed().as_millis()
-                ))
-                .await
-                .inspect_err(|e| tracing::warn!("failed to publish! see: {e}"));
-
-            rosout!(node, LogLevel::Warn, "sent a message! msg_ct: {msg_ct}");
-
-            // sleep for 500ms each loop
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-
-        // after this prints, the future is Poll::Ready(()), so we're done with
-        // our task. this will stop running and won't run again.
-        tracing::info!("done publishing! see ya");
-    });
-
+    // What is thine purpose?
     tokio::time::sleep(Duration::from_secs(17)).await;
 
     tracing::info!("wheels node is shutting down...");
@@ -119,5 +130,18 @@ fn spin(node: &mut Node) {
                 .await
                 .inspect_err(|e| tracing::warn!("failed to spin node! see: {e}"));
         });
+    }
+}
+
+// converts the incoming message into the correct byte array based on feedback
+fn parse_wheels_msg(msg: &str) -> Option<Wheels> {
+    let bytes: Vec<u8> = msg.as_bytes().to_vec(); // convert the incoming message string into a byte array.
+    
+    // validate that the message has the correct format and contains the expected subsystem identifiers.
+    if bytes.len() == 9 && bytes[0] == Wheels::SUBSYSTEM_BYTE && bytes[1] == Wheels::PART_BYTE {
+        // extract wheel control values and create a new `Wheels` instance.
+        Some(Wheels::new(bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8]))
+    } else {
+        None // return None if the message format is invalid.
     }
 }
