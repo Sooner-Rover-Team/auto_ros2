@@ -2,6 +2,7 @@ import rclpy
 import matplotlib.pyplot as plt
 from rclpy.node import Node
 import cv2 as cv
+import cv2.aruco as aruco
 import os
 
 # Used to convert OpenCV Mat type to ROS Image type
@@ -14,17 +15,25 @@ class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
 
+        # Subscriber configuration
         self.subscription = self.create_subscription(
                 Image, 'image', self.image_callback, 1)
         self.bridge = CvBridge()
 
+        # Video writer configuration
         self.video_writer = None
         self.frame_size = None
         self.fps = 30
-
         self.video_dir = "videos"
         os.makedirs(self.video_dir, exist_ok=True)
-        self.video_path = os.path.join(self.video_dir, "output_video.mp4")
+        self.video_path = os.path.join(self.video_dir, "output_video.mp4") # TODO: Make this configureable
+
+        # Aruco detector configuration
+        self.ids_to_detect = [0] # TODO: Make this configurable
+        self.dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50) # TODO: Make this configurable. By default, it's 4x4_50=0
+        self.detector_params = aruco.DetectorParameters() # TODO: Look into this
+        self.tracker = aruco.ArucoDetector(self.dict, self.detector_params)
+
 
     def image_callback(self, image_msg):
         try:
@@ -41,13 +50,31 @@ class ArucoNode(Node):
                 )
                 self.get_logger().info(f"Video recording started: {self.video_path}")
 
-            self.video_writer.write(cv_image)
             self.get_logger().info("Image captured")
-            
+
+            # TODO: Grayscaling/Image Processing
+
+            # Detect the marker ids
+            marker_corners, marker_ids = self.detect_aruco_markers(cv_image)
+            self.get_logger().info(f"Found the follwing ids: {marker_ids}")
+
+            cv_detection_image = aruco.drawDetectedMarkers(cv_image, 
+                                                           marker_corners,
+                                                           marker_ids)
+            self.video_writer.write(cv_detection_image)
 
         except Exception as e:
             self.get_logger().error(f"Error processing image: {e}")
-
+        
+    def detect_aruco_markers(self, image):
+        # Detect markers (corners and ids) and possible corners (rejected)
+        (
+         detected_marker_corners,
+         detected_marker_ids,
+         rejected_marker_ids
+        )= self.tracker.detectMarkers(image)
+        return detected_marker_corners, detected_marker_ids
+        
     def close_video(self):
         if self.video_writer:
             self.video_writer.release()
