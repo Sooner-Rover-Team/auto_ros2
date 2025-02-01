@@ -41,16 +41,16 @@ impl Message for LightsResponse {}
 async fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
 
-    // init ros2 context, which is just the DDS middleware
+    // Initialize ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
 
-    // create the lights node
+    // Create the lights node
     let mut node = create_node(&ros2_context);
     let service_qos = qos();
 
     rosout!(node, LogLevel::Info, "lights node is online!");
 
-    // create server
+    // Create server
     let server = node
         .create_server::<AService<LightsRequest, LightsResponse>>(
             ServiceMapping::Enhanced,
@@ -69,10 +69,12 @@ async fn main() {
 
     let ipaddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); //TODO: Change this to the correct ip address
     let port = 8080; //TODO: Change this to the correct port number
-                     // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
+
+    // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
     let controller = RoverController::new(ipaddr, port)
         .await
         .expect("Failed to create Rover Controller");
+
     // Create a task
     let mut server_stream = server.receive_request_stream();
     while let Some(result) = server_stream.next().await {
@@ -93,23 +95,27 @@ async fn main() {
                     green: req.green,
                     blue: req.blue,
                 };
-                let lights_result = controller.send_led(&led).await;
-                let response;
-                match lights_result {
-                    Ok(_) => {
-                        response = LightsResponse { success: true };
-                    }
-                    Err(e) => {
-                        rosout!(node, LogLevel::Error, "failed to send response: {e}");
-                        response = LightsResponse { success: false };
-                    }
+
+                // This is what is sent back to the client (returns true if successful, false if not)
+                let mut response = LightsResponse { success: false };
+
+                // Try sending the led to the microcontroller
+                if controller
+                    .send_led(&led)
+                    .await
+                    .inspect_err(|e| rosout!(node, LogLevel::Error, "failed to send request: {e}"))
+                    .is_ok()
+                {
+                    response = LightsResponse { success: true };
                 }
 
-                let sr = server.async_send_response(req_id, response).await;
-
-                if let Err(e) = sr {
-                    rosout!(node, LogLevel::Error, "failed to send response: {e}");
-                }
+                // Sends response to client
+                let _ = server
+                    .async_send_response(req_id, response)
+                    .await
+                    .inspect_err(|e| {
+                        rosout!(node, LogLevel::Error, "failed to send response: {e}")
+                    });
             }
 
             Err(e) => {
