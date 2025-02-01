@@ -39,7 +39,7 @@ impl Message for LightsResponse {}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
+    //log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
 
     // Initialize ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
@@ -67,11 +67,12 @@ async fn main() {
         "Server created, waiting for requests..."
     );
 
-    let ipaddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); //TODO: Change this to the correct ip address
-    let port = 8080; //TODO: Change this to the correct port number
+    let ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
+    let ebox_port = 5003;
+    let local_port = 6666;
 
     // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
-    let controller = RoverController::new(ipaddr, port)
+    let controller = RoverController::new(ipaddr, ebox_port, local_port)
         .await
         .expect("Failed to create Rover Controller");
 

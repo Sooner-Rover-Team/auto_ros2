@@ -124,7 +124,6 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 name = "autonomous_node"
 version = "0.1.0"
 dependencies = [
- "feedback",
  "log4rs",
  "ros2-client",
  "tokio",
@@ -411,8 +410,8 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "feedback"
-version = "0.1.0"
-source = "git+https://github.com/onkoe/feedback#57a06d6c3e36ab9b68c9a43ed2de2834793af982"
+version = "0.2.0"
+source = "git+https://github.com/onkoe/feedback#c95db730fd147fc01859daa399e55dd751ce08ca"
 dependencies = [
  "futures-lite",
  "pyo3",
