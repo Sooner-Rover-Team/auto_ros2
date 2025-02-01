@@ -1,13 +1,16 @@
 use futures_lite::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, AService, Context, Message, Name, Node,
     NodeName, NodeOptions, ServiceMapping, ServiceTypeName,
 };
 
-//use feedback::*;
+use feedback::{prelude::RoverController, Led};
 
 /* The lights node provides a service so that the client can make a request to turn the lights a given color.
 The request information contains values representing:
@@ -23,7 +26,7 @@ pub struct LightsRequest {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
-    pub flashing: bool,
+    pub flashing: bool, //TODO: add implementation for flashing
 }
 impl Message for LightsRequest {}
 
@@ -64,11 +67,16 @@ async fn main() {
         "Server created, waiting for requests..."
     );
 
-    // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
-    //let controller = RoverController:new(ipaddr, port).await.expect("Failed to create Rover Controller");
+    let ipaddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); //TODO: Change this to the correct ip address
+    let port = 8080; //TODO: Change this to the correct port number
+                     // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
+    let controller = RoverController::new(ipaddr, port)
+        .await
+        .expect("Failed to create Rover Controller");
     // Create a task
     let mut server_stream = server.receive_request_stream();
     while let Some(result) = server_stream.next().await {
+        tracing::debug!("Entered while loop");
         match result {
             Ok((req_id, req)) => {
                 rosout!(
@@ -78,15 +86,32 @@ async fn main() {
                     req_id,
                     req
                 );
-                // TODO: Parse incoming message into byte array based on feedback
-                // let response = controller.send_led(&leds)
-                let response = LightsResponse { success: true };
+
+                // Send the request to the rover controller
+                let led = Led {
+                    red: req.red,
+                    green: req.green,
+                    blue: req.blue,
+                };
+                let lights_result = controller.send_led(&led).await;
+                let response;
+                match lights_result {
+                    Ok(_) => {
+                        response = LightsResponse { success: true };
+                    }
+                    Err(e) => {
+                        rosout!(node, LogLevel::Error, "failed to send response: {e}");
+                        response = LightsResponse { success: false };
+                    }
+                }
+
                 let sr = server.async_send_response(req_id, response).await;
 
                 if let Err(e) = sr {
                     rosout!(node, LogLevel::Error, "failed to send response: {e}");
                 }
             }
+
             Err(e) => {
                 rosout!(node, LogLevel::Error, "failed to send response: {e}");
             }
