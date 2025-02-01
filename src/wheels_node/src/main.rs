@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use feedback::{Wheels, prelude::RoverController};
+use feedback::{Wheels, prelude::RoverController, parse::Message};
 use std::sync::mpsc;
 
 use ros2_client::{
@@ -58,7 +58,7 @@ async fn main() {
     let controller = RoverController::new(ipaddr, port).await.expect("Failed to create RoverController");
 
     // processes the recieved commands and sends the commands to the microcontroller
-    tokio::task::spawn(async move {
+    let join_handle = tokio::task::spawn(async move {
         while let Ok(msg) = rx.recv() {
             match parse_wheels_msg(&msg) { // parses the message into the correct data
                 Some(wheels) => {
@@ -78,8 +78,10 @@ async fn main() {
     // make the node do stuff
     spin(&mut node);
 
+    join_handle.await;
+
     // What is thine purpose?
-    tokio::time::sleep(Duration::from_secs(17)).await;
+    //tokio::time::sleep(Duration::from_secs(17)).await;
 
     tracing::info!("wheels node is shutting down...");
 }
@@ -134,14 +136,20 @@ fn spin(node: &mut Node) {
 }
 
 // converts the incoming message into the correct byte array based on feedback
+#[tracing::instrument]
 fn parse_wheels_msg(msg: &str) -> Option<Wheels> {
-    let bytes: Vec<u8> = msg.as_bytes().to_vec(); // convert the incoming message string into a byte array.
-    
-    // validate that the message has the correct format and contains the expected subsystem identifiers.
-    if bytes.len() == 9 && bytes[0] == Wheels::SUBSYSTEM_BYTE && bytes[1] == Wheels::PART_BYTE {
-        // extract wheel control values and create a new `Wheels` instance.
-        Some(Wheels::new(bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8]))
-    } else {
-        None // return None if the message format is invalid.
-    }
+	let bytes = msg.as_bytes();
+
+	let parsed_msg_res = feedback::parse::parse(bytes)
+		.inspect_err(|e| tracing::debug!("Couldn't parse message! err: {e}"))
+		.ok();
+
+	if let Some(parsed_msg) = parsed_msg_res {
+		if let Message::Wheels(wheels) = parsed_msg {
+			tracing::debug!("Got a wheels message! {wheels:#?}");
+			return Some(wheels);
+		}
+	}
+
+	None
 }
