@@ -42,8 +42,6 @@ impl Message for LightsResponse {}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    //log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
-
     // Initialize ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
 
@@ -58,7 +56,7 @@ async fn main() {
         .create_server::<AService<LightsRequest, LightsResponse>>(
             ServiceMapping::Enhanced,
             &Name::new("/", "lights_service").unwrap(),
-            &ServiceTypeName::new("example_interfaces", "Lights"),
+            &ServiceTypeName::new("lights_node", "lights"),
             service_qos.clone(),
             service_qos,
         )
