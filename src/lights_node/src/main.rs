@@ -42,6 +42,10 @@ impl Message for LightsResponse {}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter("RUST_LOG=ERROR,lights_node=DEBUG,feedback=DEBUG")
+        .init();
+
     // Initialize ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
 
@@ -68,7 +72,7 @@ async fn main() {
         "Server created, waiting for requests..."
     );
 
-    let ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
+    let ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 102));
     let ebox_port = 5003;
     let local_port = 6666;
 
@@ -76,6 +80,11 @@ async fn main() {
     let controller = RoverController::new(ipaddr, ebox_port, local_port)
         .await
         .expect("Failed to create Rover Controller");
+
+    // make and spin friend node (TODO: remove)
+    tracing::info!("starting friend node...");
+    tokio::task::spawn(make_n_spin_friend_node(ros2_context.clone()));
+    tracing::info!("started friend node.");
 
     // Create a task
     let mut server_stream = server.receive_request_stream();
@@ -105,7 +114,7 @@ async fn main() {
                 if controller
                     .send_led(&led)
                     .await
-                    .inspect_err(|e| rosout!(node, LogLevel::Error, "failed to send request: {e}"))
+                    .inspect_err(|e| tracing::error!("failed to send request: {e}"))
                     .is_ok()
                 {
                     response = LightsResponse { success: true };
@@ -180,5 +189,57 @@ fn spin(node: &mut Node) {
                 .await
                 .inspect_err(|e| tracing::warn!("failed to spin node! see: {e}"));
         });
+    }
+}
+
+async fn make_n_spin_friend_node(ctx: Context) {
+    let mut friend_node = ctx
+        .new_node(
+            NodeName::new("/rustdds", "friend_node").unwrap(),
+            NodeOptions::new().enable_rosout(true),
+        )
+        .unwrap();
+
+    // make a client on it
+    let qos = qos();
+    let client = friend_node
+        .create_client::<AService<LightsRequest, LightsResponse>>(
+            ServiceMapping::Enhanced,
+            &Name::new("/", "lights_service").unwrap(),
+            &ServiceTypeName::new("lights_node", "lights"),
+            qos.clone(),
+            qos,
+        )
+        .unwrap();
+
+    spin(&mut friend_node);
+
+    loop {
+        tracing::info!("Sending request...");
+        let lights_response = client
+            .async_send_request(LightsRequest {
+                red: 255,
+                green: 0,
+                blue: 0,
+                flashing: false,
+            })
+            .await
+            .unwrap();
+        tracing::info!("resp: {lights_response:?}");
+
+        tokio::time::sleep(Duration::from_millis(750)).await;
+
+        let lights_response = client
+            .async_send_request(LightsRequest {
+                red: 255,
+                green: 255,
+                blue: 255,
+                flashing: false,
+            })
+            .await
+            .unwrap();
+        tracing::info!("resp: {lights_response:?}");
+
+        tokio::time::sleep(Duration::from_millis(750)).await;
     }
 }
