@@ -1,3 +1,14 @@
+//! # `lights_node`
+//!
+//! The lights node provides a service so that the client can make a request to turn the lights a given color.
+//! The request information contains values representing:
+//!
+//! - RED
+//! - GREEN
+//! - BLUE
+//!
+//! and a boolean for FLASHING.
+
 use futures_lite::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -11,14 +22,6 @@ use ros2_client::{
 };
 
 use feedback::{prelude::RoverController, Led};
-
-/* The lights node provides a service so that the client can make a request to turn the lights a given color.
-The request information contains values representing:
-    RED
-    GREEN
-    BLUE
-    and a boolean for FLASHING.
-*/
 
 // Struct to hold the request information (values for red, green, blue, and boolean for flashing)
 #[derive(Debug, Clone, Serialize, Deserialize)]
