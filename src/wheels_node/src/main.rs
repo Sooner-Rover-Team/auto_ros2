@@ -1,95 +1,113 @@
-use feedback::{Wheels, prelude::RoverController, parse::Message};
-use tokio::sync::{mpsc, Mutex};
-use std::{sync::Arc, net::{Ipv4Addr, IpAddr}};
+use feedback::{prelude::RoverController, Wheels};
+use futures_lite::StreamExt as _;
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
-    NodeOptions, Subscription
+    NodeOptions, Publisher, Subscription,
 };
+use std::{net::Ipv4Addr, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct WheelsMessage {
+    pub left_wheels: u8,
+    pub right_wheels: u8,
+}
+impl ros2_client::Message for WheelsMessage {}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     // enable logging to terminal
-    // tracing_subscriber::fmt()
-    //     .pretty()
-    //     .with_max_level(tracing::Level::INFO)
-    //     .init();
-    log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_env_filter("RUST_LOG=error,wheels_node=DEBUG,feedback=DEBUG")
+        .init();
 
     // init ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
 
     // create the wheels node
     let node = Arc::new(Mutex::new(create_node(&ros2_context)));
-    rosout!(node.lock().await, LogLevel::Info, "wheels node is online!");
+    tracing::info!("wheels node is online!");
 
     // make sthe wheels topic
     let wheels_topic = {
         let node_locked = node.lock().await;
-        let topic = node_locked.create_topic(
-            &Name::new("/rover", "wheels").unwrap(),
-            MessageTypeName::new("std_msgs", "String"),
-            &ros2_client::DEFAULT_SUBSCRIPTION_QOS,
-        ).expect("create wheels topic");
+        let topic = node_locked
+            .create_topic(
+                &Name::new("/", "wheels").unwrap(),
+                MessageTypeName::new("wheels_node", "Wheels"),
+                &ros2_client::DEFAULT_SUBSCRIPTION_QOS,
+            )
+            .expect("create wheels topic");
 
         topic
     };
 
-    // message channel to handle incoming data
-    // tx forwards messages recieved by topic
-    // rx processes messages on arrival
-    let (tx, rx) = mpsc::unbounded_channel::<String>();
-    let rx = Arc::new(tokio::sync::Mutex::new(rx));
-    // subscribe to wheels topic and forward messages to the channel
-    let _subscriber: Subscription<String> = {
+    // subscribe to wheels topic
+    let subscriber: Subscription<WheelsMessage> = {
         let mut node_locked = node.lock().await;
-        node_locked.create_subscription(
-            &wheels_topic, 
-            Some(qos()) // Apply the Quality of Service settings.
-        ).expect("create subscription")
+        node_locked
+            .create_subscription(
+                &wheels_topic,
+                Some(qos()), // Apply the Quality of Service settings.
+            )
+            .expect("create subscription")
     };
-
-    // ensures messges are processed correctly before being forwarded
-    // prevents ownership/borrow conflicts with rx
-    // : tokio::sync::mpsc::UnboundedReceiver<String>
-    let rx_receiver = Arc::clone(&rx);
-    tokio::task::spawn(async move {
-        while let Some(msg) = rx_receiver.lock().await.recv().await { // blocking call to receive messages
-            let _ = tx.send(msg).expect("Failed to send message"); // forward message to the channel
-        }
-    });
 
     // microcontroller that is responsible for controlling wheels
     // needs the microcontrollers' ip address and port
-    let (ip, port): (Ipv4Addr, u16) = (Ipv4Addr::new(192, 168, 1, 102), 1002);
-    let controller = RoverController::new(IpAddr::V4(ip), port).await.expect("Failed to create RoverController");
+    let (ebox_ip, ebox_port, port) = (Ipv4Addr::new(192, 168, 1, 102), 5002, 6660);
+    let controller = RoverController::new(ebox_ip.into(), ebox_port, port)
+        .await
+        .expect("Failed to create RoverController");
+    tracing::info!("Created Rover Controller.");
 
     // processes the recieved commands and sends the commands to the microcontroller
-    let rx_sendwheels = Arc::clone(&rx);
-    let node_clone = Arc::clone(&node);
     let join_handle = tokio::task::spawn(async move {
-        while let Some(msg) = rx_sendwheels.lock().await.recv().await {
-            match parse_wheels_msg(&msg) { // parses the message into the correct data
-                Some(wheels) => {
-                    // if the message is valid, send the parsed wheel commands to the microcontroller.
-                    if let Err(e) = controller.send_wheels(&wheels).await {
-                        let node_locked = node_clone.lock().await;
-                        rosout!(node_locked, LogLevel::Error, "Failed to send wheels command: {e}");
-                    }
+        let subscriber = subscriber; // move sub to task's stack
+        let mut stream = Box::pin(subscriber.async_stream());
+
+        tracing::info!("in the task :D");
+        while let Some(resp) = stream.next().await {
+            tracing::info!("got a msg!");
+
+            let msg = match resp {
+                Ok(msg) => msg.0,
+                Err(e) => {
+                    tracing::error!("Failed to get next topic message! err: {e}");
+                    continue;
                 }
-                None => {
-                    // log a warning if the message format is incorrect.
-                    let node_locked = node_clone.lock().await;
-                    rosout!(node_locked, LogLevel::Warn, "Received invalid wheels message: {msg}");
-                }
-            }
+            };
+
+            let checksum = (msg
+                .left_wheels
+                .wrapping_add(msg.left_wheels.wrapping_mul(3))
+                .wrapping_add(msg.right_wheels.wrapping_mul(3)));
+
+            let wheels = Wheels {
+                wheel0: msg.left_wheels,
+                wheel1: msg.left_wheels,
+                wheel2: msg.left_wheels,
+                wheel3: msg.right_wheels,
+                wheel4: msg.right_wheels,
+                wheel5: msg.right_wheels,
+                checksum,
+            };
+
+            let _result = controller
+                .send_wheels(&wheels)
+                .await
+                .inspect_err(|e| tracing::error!("Failed to send wheel speeds! err: {e}"));
         }
     });
 
     // make the node do stuff
     {
-    let mut node_locked = node.lock().await;
-    spin(&mut node_locked);
+        let mut node_locked = node.lock().await;
+        spin(&mut node_locked);
     }
+
+    friend_node(&ros2_context).await;
 
     if let Err(e) = join_handle.await {
         eprintln!("Error in join_handle task: {:?}", e);
@@ -153,18 +171,67 @@ fn spin(node: &mut Node) {
 // converts the incoming message into the correct byte array based on feedback
 #[tracing::instrument]
 fn parse_wheels_msg(msg: &str) -> Option<Wheels> {
-	let bytes = msg.as_bytes();
+    let bytes = msg.as_bytes();
 
-	let parsed_msg_res = feedback::parse::parse(bytes)
-		.inspect_err(|e| tracing::debug!("Couldn't parse message! err: {e}"))
-		.ok();
+    let parsed_msg_res = feedback::parse::parse(bytes)
+        .inspect_err(|e| tracing::debug!("Couldn't parse message! err: {e}"))
+        .ok();
 
-	if let Some(parsed_msg) = parsed_msg_res {
-		if let Message::Wheels(wheels) = parsed_msg {
-			tracing::debug!("Got a wheels message! {wheels:#?}");
-			return Some(wheels);
-		}
-	}
+    if let Some(parsed_msg) = parsed_msg_res {
+        if let feedback::parse::Message::Wheels(wheels) = parsed_msg {
+            tracing::debug!("Got a wheels message! {wheels:#?}");
+            return Some(wheels);
+        }
+    }
 
-	None
+    None
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn friend_node(ctx: &Context) {
+    let mut friend_node = ctx
+        .new_node(
+            NodeName::new("/", "wheels_friend_node").unwrap(),
+            NodeOptions::new().enable_rosout(true),
+        )
+        .unwrap();
+
+    let topic = friend_node
+        .create_topic(
+            &Name::new("/", "wheels").unwrap(),
+            MessageTypeName::new("wheels_node", "Wheels"),
+            &ros2_client::DEFAULT_SUBSCRIPTION_QOS,
+        )
+        .expect("create wheels topic");
+
+    let publisher: Publisher<WheelsMessage> =
+        friend_node.create_publisher(&topic, Some(qos())).unwrap();
+
+    spin(&mut friend_node);
+
+    // pub in a loop lol
+    tokio::spawn(async move {
+        loop {
+            tracing::debug!("Sending wheels 25% message...");
+            publisher
+                .publish(WheelsMessage {
+                    left_wheels: 200,
+                    right_wheels: 200,
+                })
+                .unwrap();
+            tracing::debug!("Sent 25%!");
+
+            tokio::time::sleep(Duration::from_millis(2000)).await;
+
+            tracing::debug!("Sending wheels 0% message...");
+            publisher
+                .publish(WheelsMessage {
+                    left_wheels: 126,
+                    right_wheels: 126,
+                })
+                .unwrap();
+            tracing::debug!("Sent 0%!");
+            tokio::time::sleep(Duration::from_millis(2000)).await;
+        }
+    });
 }
