@@ -69,7 +69,7 @@ async fn main() {
     );
 
     // Info for the controller to use
-    let ebox_ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
+    let ebox_ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 102));
     let ebox_port = 5003;
     let local_port = 6666; // we bind to this port
 
