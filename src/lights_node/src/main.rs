@@ -18,7 +18,7 @@ use std::{
 
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, AService, Context, Message, Name, Node,
-    NodeName, NodeOptions, ServiceMapping, ServiceTypeName,
+    NodeName, NodeOptions, Server, ServiceMapping, ServiceTypeName,
 };
 
 use feedback::{prelude::RoverController, Led};
@@ -68,6 +68,9 @@ async fn main() {
         "Server created, waiting for requests..."
     );
 
+    // Run discovery (i.e. connect to other nodes on the network)
+    spin(&mut node);
+
     let ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
     let ebox_port = 5003;
     let local_port = 6666;
@@ -77,8 +80,29 @@ async fn main() {
         .await
         .expect("Failed to create Rover Controller");
 
-    // Create a task
+    // Handle requests in the background
+    tokio::task::spawn(request_handler(server, node, controller));
+
+    // sleep the main thread until ctrl^c
+    loop {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+    }
+}
+
+/// Handles service requests from other nodes.
+///
+/// This is what makes us the service "server".
+pub async fn request_handler(
+    server: Server<AService<LightsRequest, LightsResponse>>,
+    node: Node,
+    rover_controller: RoverController,
+) {
+    // make a stream out of the server's requests
     let mut server_stream = server.receive_request_stream();
+
+    // loop over requests in the stream while we have some.
+    //
+    // if we don't have any, the task idles.
     while let Some(result) = server_stream.next().await {
         tracing::debug!("Entered while loop");
         match result {
@@ -102,12 +126,17 @@ async fn main() {
                 let mut response = LightsResponse { success: false };
 
                 // Try sending the led to the microcontroller
-                if controller
+                if rover_controller
                     .send_led(&led)
                     .await
                     .inspect_err(|e| rosout!(node, LogLevel::Error, "failed to send request: {e}"))
                     .is_ok()
                 {
+                    rosout!(
+                        node,
+                        LogLevel::Debug,
+                        "Lights value sent to microcontroller successfully!"
+                    );
                     response = LightsResponse { success: true };
                 }
 
@@ -125,13 +154,6 @@ async fn main() {
             }
         }
     }
-
-    // Make the node do stuff
-    spin(&mut node);
-    tokio::time::sleep(Duration::from_secs(30)).await;
-
-    rosout!(node, LogLevel::Info, "lights node is shutting down...");
-    //tracing::info!("lights node is shutting down...");
 }
 
 /// Creates the `lights_node`.
