@@ -1,28 +1,24 @@
 import numpy as np
 import cv2
 import cv2.aruco as aruco
+import argparse
+import dataclasses
 
+#TODO: Divide this into smaller functions
 def main():
-    # TODO: Make these command line arguments
-    num_squares_x = 11
-    num_squares_y = 8
-    square_length = 0.02  # meters
-    marker_length = 0.015 # meters
-    aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_5X5_50)
-    camera_index = 0
-    output_file = "cam.yml"
-    # TODO: Add aspect_ratio. Maybe this will make the calibration better?
+    # Get aruco information from arguments
+    ar_info = add_arguments()
 
     # Create video capture device
     # TODO: Maybe allow a video file as well
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(ar_info.camera_index)
     if not cap.isOpened():
         print("Could not open camera")
         exit()
 
     # Create Charuco board and detector
     charuco_board = cv2.aruco.CharucoBoard(
-            (num_squares_x, num_squares_y), square_length, marker_length, aruco_dict
+            (ar_info.num_squares_x, ar_info.num_squares_y), ar_info.square_length, ar_info.marker_length, ar_info.aruco_dict
     )
     charuco_params = cv2.aruco.CharucoParameters()      # TODO: Allow the user to adjust 
     detector_params = cv2.aruco.DetectorParameters()    # TODO: Allow the user to adjust 
@@ -113,13 +109,13 @@ def main():
 
     # Save the camera parameters
     try:
-        fs = cv2.FileStorage(output_file, cv2.FILE_STORAGE_WRITE)
+        fs = cv2.FileStorage(ar_info.output_file, cv2.FILE_STORAGE_WRITE)
         fs.write("camera_matrix", camera_mat)
         fs.write("dist_coeffs", dist_coeffs)
         fs.write("reproj_error", rep_error)
         fs.release()
     except Exception as e:
-        print(f"Could not finish writing calibration info to {output_file}: {e}")
+        print(f"Could not finish writing calibration info to {ar_info.output_file}: {e}")
     finally:
         # Release camera and destroy opencv windows
         cap.release()
@@ -134,6 +130,59 @@ def main():
     # Release camera and destroy opencv windows
     cap.release()
     cv2.destroyAllWindows()
+
+# Function to add arguments to the program with argparse
+def add_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_squares_x", type=int, default=11, help="Number of columns in the aruco checkerboard")
+    parser.add_argument("--num_squares_y", type=int, default=8, help="Number of rows in the aruco checkerboard")
+    parser.add_argument("--square_length", type=float, default=0.02, help="Length of the checkerboard square that the marker lies in")
+    parser.add_argument("--marker_length", type=float, default=0.015, help="Length of the marker itself")
+    parser.add_argument("--camera_index", type=int, default=0, help="Index of the camera to use")
+    parser.add_argument("--output_file", type=str, default="cam.yml", help="Output file to save the camera calibration info")
+    parser.add_argument("--aruco_dict", type=str, choices=["4x4_50", "4x4_100", "4x4_250", "4x4_1000", "5x5_50", "5x5_100", "5x5_250", "5x5_1000", "6x6_50", "6x6_100", "6x6_250", "6x6_1000", "7x7_50", "7x7_100", "7x7_250", "7x7_1000"], default="5x5_50", help="Aruco dictionary to use. Takes argument of the form [# of bits]x[# of bits]_[# of aruco markers]. Default: 5x5_50")
+    # TODO: Add aspect_ratio. Maybe this will make the calibration better?
+    
+    # Create a dataclass to hold the aruco information
+    args = parser.parse_args()
+    @dataclasses.dataclass
+    class ArucoInfo:
+        num_squares_x: int
+        num_squares_y: int
+        square_length: float
+        marker_length: float
+        camera_index: int
+        output_file: str
+        aruco_dict: aruco.Dictionary
+    ArucoInfo.num_squares_x = args.num_squares_x
+    ArucoInfo.num_squares_y = args.num_squares_y
+    ArucoInfo.square_length = args.square_length
+    ArucoInfo.marker_length = args.marker_length
+    ArucoInfo.camera_index = args.camera_index
+    ArucoInfo.output_file = args.output_file
+    
+    # Maps the string options to predefined aruco dictionary constants
+    aruco_dict_map = {
+        "4x4_50": aruco.DICT_4X4_50,
+        "4x4_100": aruco.DICT_4X4_100,
+        "4x4_250": aruco.DICT_4X4_250,
+        "4x4_1000": aruco.DICT_4X4_1000,
+        "5x5_50": aruco.DICT_5X5_50,
+        "5x5_100": aruco.DICT_5X5_100,
+        "5x5_250": aruco.DICT_5X5_250,
+        "5x5_1000": aruco.DICT_5X5_1000,
+        "6x6_50": aruco.DICT_6X6_50,
+        "6x6_100": aruco.DICT_6X6_100,
+        "6x6_250": aruco.DICT_6X6_250,
+        "6x6_1000": aruco.DICT_6X6_1000,
+        "7x7_50": aruco.DICT_7X7_50,
+        "7x7_100": aruco.DICT_7X7_100,
+        "7x7_250": aruco.DICT_7X7_250,
+        "7x7_1000": aruco.DICT_7X7_1000
+    }
+    ArucoInfo.aruco_dict = aruco.getPredefinedDictionary(aruco_dict_map[args.aruco_dict])
+
+    return ArucoInfo
 
 if __name__ == "__main__":
     main()
