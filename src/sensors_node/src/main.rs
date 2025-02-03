@@ -4,9 +4,11 @@
 //! other nodes through various topics.
 
 use core::net::{IpAddr, Ipv4Addr};
+use std::sync::Arc;
 
 use camino::Utf8PathBuf;
 use ros2_client::{log::LogLevel, rosout, Context};
+use tokio::sync::RwLock;
 
 mod logic;
 mod msg;
@@ -28,6 +30,15 @@ async fn main() {
 
     // make the node do stuff
     logic::spin(&mut sensors_node);
+
+    // start all our topics + publishers
+    //
+    // TODO: maybe fill `sensor_setup` using params?
+    logic::spawn_sensor_publisher_tasks(
+        SensorSetup::default(),
+        Arc::new(RwLock::new(sensors_node)),
+    )
+    .await;
 }
 
 /// Information about how to reach the sensors.
