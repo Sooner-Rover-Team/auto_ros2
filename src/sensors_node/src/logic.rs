@@ -173,3 +173,38 @@ mod sensor_tasks {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::{net::Ipv4Addr, sync::Arc};
+
+    use ros2_client::{Context, MessageTypeName, Name, NodeName, NodeOptions};
+    use soro_gps::Gps;
+    use tokio::sync::RwLock;
+
+    #[tokio::test]
+    async fn gps_task_doesnt_panic() {
+        let ctx = Context::new().unwrap();
+        let mut node = ctx
+            .new_node(
+                NodeName::new("/test", "gps_task_doesnt_panic_node").unwrap(),
+                NodeOptions::new(),
+            )
+            .unwrap();
+        let topic = node
+            .create_topic(
+                &Name::new("/test", "gps_task_doesnt_panic_topic").unwrap(),
+                MessageTypeName::new("sensors", "GpsMessage"),
+                &super::qos(),
+            )
+            .unwrap();
+        let gps_pub = node.create_publisher(&topic, None).unwrap();
+        let gps = Gps::new(Ipv4Addr::LOCALHOST.into(), 55556, 0).unwrap();
+
+        // we ignore the error since we don't care if anything connects.
+        //
+        // this just ensures that the thread doesn't panic! :D
+        let future = super::sensor_tasks::gps_task(gps, gps_pub, Arc::new(RwLock::new(node)));
+        let _will_time_out =
+            tokio::time::timeout(tokio::time::Duration::from_secs(2), future).await;
+    }
+}
