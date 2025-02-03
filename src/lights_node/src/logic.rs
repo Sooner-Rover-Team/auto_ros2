@@ -106,7 +106,10 @@ pub fn qos() -> ros2_client::ros2::QosPolicies {
 /// This spawns a background task that runs until the Node is turned off.
 /// Without the spinner running, the Node is functionally useless. The same
 /// is true for Nodes in Python.
+#[tracing::instrument(skip(node))]
 pub fn spin(node: &mut Node) {
+    tracing::debug!("Spinning node: `{}`", node.fully_qualified_name());
+
     // try making the spinner task
     let spinner = node
         .spinner()

@@ -88,3 +88,6 @@ async fn main() {
         tokio::time::sleep(Duration::from_secs(30)).await;
     }
 }
+
+#[cfg(test)]
+mod tests;
