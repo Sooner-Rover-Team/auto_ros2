@@ -3,7 +3,7 @@
 //! This node grabs data from each of the important sensors, providing it to
 //! other nodes through various topics.
 
-use core::net::IpAddr;
+use core::net::{IpAddr, Ipv4Addr};
 
 use camino::Utf8PathBuf;
 use ros2_client::{log::LogLevel, rosout, Context};
@@ -50,4 +50,30 @@ pub struct SensorSetup {
     // imu
     pub imu_ip: IpAddr,
     pub imu_port: u16,
+}
+
+impl AsRef<SensorSetup> for SensorSetup {
+    fn as_ref(&self) -> &SensorSetup {
+        self
+    }
+}
+
+impl Default for SensorSetup {
+    fn default() -> Self {
+        let ebox_microcontroller_ip = Ipv4Addr::new(192, 168, 1, 102).into();
+
+        Self {
+            gps_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 222)),
+            gps_port: 55556, // FIXME: this should be documented! check first though.
+
+            depth_camera_path: Utf8PathBuf::new(), // TODO: this is pretty bad
+            mono_camera_path: Utf8PathBuf::new(),  // and this too
+
+            battery_monitor_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            battery_monitor_port: 5007,
+
+            imu_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            imu_port: 5006,
+        }
+    }
 }
