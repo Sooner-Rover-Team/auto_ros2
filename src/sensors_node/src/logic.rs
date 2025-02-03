@@ -96,6 +96,80 @@ pub async fn spawn_sensor_publisher_tasks(
         // we're just sending stuff to people and assuming they get it.
         let gps =
             Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 0_u16).expect("gps creation");
+
+        tokio::task::spawn(sensor_tasks::gps_task(
+            gps,
+            gps_pub,
+            Arc::clone(&sensors_node),
+        ));
+        rosout!(locked_sensors_node, LogLevel::Debug, "made gps task!");
+    }
+}
+
+/// A module made of tasks for each sensor.
+mod sensor_tasks {
+    use std::{sync::Arc, time::Duration};
+
+    use ros2_client::{log::LogLevel, rosout, Node, Publisher};
+    use soro_gps::{Coordinate, ErrorInMm, Gps, Height, TimeOfWeek};
+    use tokio::sync::RwLock;
+
+    use crate::msg::{builtins::GeoPoint, sensors::GpsMessage};
+
+    /// Publishes `GpsMessage`s when the GPS provides an update.
+    pub async fn gps_task(gps: Gps, gps_pub: Publisher<GpsMessage>, node: Arc<RwLock<Node>>) {
+        let mut coord_raw: Option<Coordinate>;
+        let mut height_raw: Option<Height>;
+        let mut error_raw: Option<ErrorInMm>;
+        let mut tow_raw: Option<TimeOfWeek>;
+
+        // every 1/20th of a second, check for any updates.
+        //
+        // if the data is different, we'll publish it in a message.
+        loop {
+            // check for gps data
+            coord_raw = gps.coord();
+            height_raw = gps.height();
+            error_raw = gps.error();
+            tow_raw = gps.time_of_week();
+
+            // if we got all the values, publish them!
+            if let (Some(coord), Some(height), Some(error), Some(tow)) =
+                (coord_raw, height_raw, error_raw, tow_raw)
+            {
+                let gps_message = GpsMessage {
+                    coord: GeoPoint {
+                        latitude: coord.lat,
+                        longitude: coord.lon,
+                        altitude: height.0,
+                    },
+                    error_mm: error.0,
+                    time_of_week: tow.0,
+                };
+                tracing::debug!("Attempting to publish GPS message: {gps_message:?}");
+
+                _ = gps_pub
+                    .async_publish(gps_message)
+                    .await
+                    .inspect_err(|e| {
+                        rosout!(
+                            node.blocking_read(), // FIXME: blocking might be bad here
+                            LogLevel::Warn,
+                            "failed to write GPS message! err: {e}"
+                        )
+                    })
+                    .inspect(|()| tracing::trace!("Published GPS message successfully!"));
+            }
+
+            // sleep until gps can update
+            //
+            // note: this is, according to the GPS-RTK2's datasheet, "up to" 1/20th
+            // of a second. the gps may not be able to update that fast, but even so,
+            // we won't get a response in time if that's the case.
+            //
+            // so 1/20th of a second should work fine. :D
+            tokio::time::sleep(Duration::from_secs(1) / 20).await;
+        }
     }
 }
 
