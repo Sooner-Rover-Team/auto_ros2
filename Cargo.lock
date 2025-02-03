@@ -1177,7 +1177,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 [[package]]
 name = "ros2-client"
 version = "0.7.6"
-source = "git+https://github.com/Sooner-Rover-Team/ros2-client?rev=f232e23#f232e236fd7aded27374193d724512e3f43249ea"
+source = "git+https://github.com/Sooner-Rover-Team/ros2-client?rev=2b2eb14#2b2eb1435b0a5e8d55721423946e91253ccf7412"
 dependencies = [
  "async-channel",
  "bstr",
@@ -1904,3 +1904,7 @@ dependencies = [
  "quote",
  "syn 2.0.92",
 ]
+
+[[patch.unused]]
+name = "autonomous_node"
+version = "0.1.0"
