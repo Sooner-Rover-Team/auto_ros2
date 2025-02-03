@@ -15,32 +15,48 @@ class ArucoNode(Node):
 
     def __init__(self):
         super().__init__("aruco_node")
+        # Parameters for class
+        from rcl_interfaces.msg import ParameterDescriptor
+        self.declare_parameter('camera_config_file', 'cam.yml',
+            ParameterDescriptor(description="The camera config .yml file that contains camera matrix, distance coefficients, and reprojection error")
+        )
+        self.declare_parameter('write_video', False,
+            ParameterDescriptor(description="If set to True, it will create all output videos in the `/{video_dir}` directory")
+        )
+        self.declare_parameter('video_dir', 'videos',
+           ParameterDescriptor(description="The name of the directory where video files are saved")
+        )
+        self.declare_parameter('video_fps', 30,
+           ParameterDescriptor(description="The frames per second (FPS) of the output videos")
+        )
 
-        # Subscriber configuration
-        self.subscription = self.create_subscription(
-                Image, 'image', self.image_callback, 1)
-        self.bridge = CvBridge()
 
-        # Read camera calibration parameters
-        # TODO: Make the .yml file an argument
-        # TODO: This should be wrapped in a try except block
-        self.camera_config_file = "cam.yml"
-        fs = cv.FileStorage(self.camera_config_file, cv.FILE_STORAGE_READ)
-        self.camera_mat = fs.getNode("camera_matrix").mat()
-        self.dist_coeffs = fs.getNode("dist_coeffs").mat()
-        self.rep_error = fs.getNode("reproj_error").real()
-        fs.release()
+        # Set the camera calibration information from config file
+        try:
+            (
+             self.camera_mat,
+             self.dist_coeffs,
+             self.rep_error
+            ) = self.read_camera_config_file()
+        except Exception as e:
+                self.get_logger().error(f"Could not read camera configuration file: {e}")
+                exit(0)
+
 
         # Video writer configuration
-        # TODO: Make writing out the video optional
-        self.video_writer = None
-        self.frame_size = None
-        self.fps = 30
-        self.video_dir = "videos"
-        os.makedirs(self.video_dir, exist_ok=True)
-        self.video_path = os.path.join(self.video_dir, "output_video.mp4") # TODO: Make this configureable
+        self.write_video = self.get_parameter('write_video').get_parameter_value().bool_value
+        if self.write_video:
+            video_dir = self.get_parameter('video_dir').get_parameter_value().string_value
 
+            self.video_writer = None
+            self.frame_size = None
+            self.fps = (
+                self.get_parameter('video_fps').get_parameter_value().integer_value
+            )
+            self.video_dir = "videos"
 
+            os.makedirs(self.video_dir, exist_ok=True)
+            self.video_path = os.path.join(video_dir, "output_video.mp4")
 
         # Aruco detector configuration
         self.ids_to_detect = [0] # TODO: Make this configurable
@@ -55,12 +71,28 @@ class ArucoNode(Node):
                 [-self.marker_length / 2, 0, -self.marker_length / 2], # Bottom-left
             ])
 
+        # Subscriber configuration
+        self.subscription = self.create_subscription(
+                Image, 'image', self.image_callback, 1)
+        self.bridge = CvBridge()
+
+    def read_camera_config_file(self):
+        """Read the camera configuration file and return parameters"""
+        camera_config_file = self.get_parameter('camera_config_file').get_parameter_value().string_value
+        fs = cv.FileStorage(camera_config_file, cv.FILE_STORAGE_READ)
+        camera_mat = fs.getNode("camera_matrix").mat()
+        dist_coeffs = fs.getNode("dist_coeffs").mat()
+        rep_error = fs.getNode("reproj_error").real()
+        fs.release()
+
+        return camera_mat, dist_coeffs, rep_error
+
     def image_callback(self, image_msg):
         try:
             # Convert ROS2 Image to OpenCv format
             cv_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding='bgr8')
 
-            if self.video_writer is None:
+            if self. self.video_writer is None:
                 self.frame_size = (cv_image.shape[1], cv_image.shape[0])
                 self.video_writer = cv.VideoWriter(
                     self.video_path,
