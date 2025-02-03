@@ -1,6 +1,15 @@
 //! Logic is encapsulated here to avoid clutter in the `main` module.
 
-use ros2_client::{ros2::QosPolicyBuilder, Context, Node, NodeName, NodeOptions};
+use std::sync::Arc;
+
+use ros2_client::{
+    log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
+    NodeOptions,
+};
+use soro_gps::Gps;
+use tokio::sync::RwLock;
+
+use crate::{msg::sensors::GpsMessage, SensorSetup};
 
 /// Creates the `sensors_node`.
 #[tracing::instrument(skip(ctx))]
@@ -18,7 +27,7 @@ pub fn create_node(ctx: &Context) -> Node {
 /// a shared crate library or at least find the 'best' values on the Rover
 /// for competition.
 #[tracing::instrument]
-pub fn _qos() -> ros2_client::ros2::QosPolicies {
+pub fn qos() -> ros2_client::ros2::QosPolicies {
     QosPolicyBuilder::new()
         .history(ros2_client::ros2::policy::History::KeepLast { depth: 10 })
         .reliability(ros2_client::ros2::policy::Reliability::Reliable {
@@ -50,3 +59,43 @@ pub fn spin(node: &mut Node) {
             .inspect_err(|e| tracing::warn!("failed to spin node! see: {e}"));
     });
 }
+
+/// Starts all tasks that over all sensor data and to publish to the correct topics.
+pub async fn spawn_sensor_publisher_tasks(
+    sensor_setup: impl AsRef<SensorSetup>,
+    sensors_node: Arc<RwLock<Node>>,
+) {
+    let sensor_setup = sensor_setup.as_ref();
+    // TODO: create mono cam, depth cam, battery, imu publishers
+
+    // IMPORTANT: we lock the `sensors_node` for our own uses while we create
+    // stuff for each task.
+    //
+    // when we're done, we'll unlock it, allowing them to start doing stuff.
+
+    // spawn gps task
+    {
+        let mut locked_sensors_node = sensors_node.write().await;
+
+        let gps_topic = locked_sensors_node
+            .create_topic(
+                &Name::new("/sensors", "gps").expect("valid topic name"),
+                MessageTypeName::new("sensors_node", "GpsMessage"),
+                &qos(),
+            )
+            .expect("create gps topic");
+
+        // make a gps publisher
+        let gps_pub = locked_sensors_node
+            .create_publisher::<GpsMessage>(&gps_topic, Some(qos()))
+            .expect("create gps publisher");
+
+        // connect to gps
+        //
+        // note: we use `0` for the port we bind on since it doesn't matter.
+        // we're just sending stuff to people and assuming they get it.
+        let gps =
+            Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 0_u16).expect("gps creation");
+    }
+}
+
