@@ -10,11 +10,11 @@
   <maintainer email="tyler73750@gmail.com">Tyler Roman</maintainer>
 
   <license>TODO</license>
-  <<exec_depend>rclpy</exec_depend>
-  <<exec_depend>sensor_msgs</exec_depend>
-  <<exec_depend>cv_bridge</exec_depend>
-  <<exec_depend>vision_opencv</exec_depend>
-  <<exec_depend>opencv-python</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>vision_opencv</exec_depend>
+  <exec_depend>opencv-python</exec_depend>
 
   <!-- note: these are optional and only for testing -->
   <test_depend>ament_pep257</test_depend>
