@@ -6,6 +6,7 @@
 use ros2_client::{log::LogLevel, rosout, Context};
 
 mod logic;
+mod msg;
 
 #[tokio::main(flavor = "multi_thread")]
 #[tracing::instrument]
