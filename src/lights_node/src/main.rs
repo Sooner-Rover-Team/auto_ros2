@@ -9,7 +9,6 @@
 //!
 //! and a boolean for FLASHING.
 
-use futures_lite::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{
     net::{IpAddr, Ipv4Addr},
@@ -17,11 +16,12 @@ use std::{
 };
 
 use ros2_client::{
-    log::LogLevel, ros2::QosPolicyBuilder, rosout, AService, Context, Message, Name, Node,
-    NodeName, NodeOptions, Server, ServiceMapping, ServiceTypeName,
+    log::LogLevel, rosout, AService, Context, Message, Name, ServiceMapping, ServiceTypeName,
 };
 
-use feedback::{prelude::RoverController, Led};
+use feedback::prelude::RoverController;
+
+mod logic;
 
 // Struct to hold the request information (values for red, green, blue, and boolean for flashing)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ pub struct LightsRequest {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
-    pub flashing: bool, //TODO: add implementation for flashing
+    pub flashing: bool, // TODO: add implementation for flashing
 }
 impl Message for LightsRequest {}
 
@@ -46,8 +46,8 @@ async fn main() {
     let ros2_context = Context::new().expect("init ros 2 context");
 
     // Create the lights node
-    let mut node = create_node(&ros2_context);
-    let service_qos = qos();
+    let mut node = logic::create_node(&ros2_context);
+    let service_qos = logic::qos();
 
     rosout!(node, LogLevel::Info, "lights node is online!");
 
@@ -68,139 +68,23 @@ async fn main() {
         "Server created, waiting for requests..."
     );
 
-    // Run discovery (i.e. connect to other nodes on the network)
-    spin(&mut node);
-
-    let ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
+    // Info for the controller to use
+    let ebox_ipaddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 68));
     let ebox_port = 5003;
-    let local_port = 6666;
+    let local_port = 6666; // we bind to this port
 
     // New instance of RoverController type, this should probably be a global thing. Need ip address and port number
-    let controller = RoverController::new(ipaddr, ebox_port, local_port)
+    let controller = RoverController::new(ebox_ipaddr, ebox_port, local_port)
         .await
         .expect("Failed to create Rover Controller");
 
-    // Handle requests in the background
-    tokio::task::spawn(request_handler(server, node, controller));
+    // Make the node do stuff
+    logic::spin(&mut node);
 
-    // sleep the main thread until ctrl^c
+    // Handle requests in the background
+    tokio::task::spawn(logic::request_handler(server, node, controller));
+
     loop {
         tokio::time::sleep(Duration::from_secs(30)).await;
-    }
-}
-
-/// Handles service requests from other nodes.
-///
-/// This is what makes us the service "server".
-pub async fn request_handler(
-    server: Server<AService<LightsRequest, LightsResponse>>,
-    node: Node,
-    rover_controller: RoverController,
-) {
-    // make a stream out of the server's requests
-    let mut server_stream = server.receive_request_stream();
-
-    // loop over requests in the stream while we have some.
-    //
-    // if we don't have any, the task idles.
-    while let Some(result) = server_stream.next().await {
-        tracing::debug!("Entered while loop");
-        match result {
-            Ok((req_id, req)) => {
-                rosout!(
-                    node,
-                    LogLevel::Info,
-                    "received request: {:?} {:?}",
-                    req_id,
-                    req
-                );
-
-                // Send the request to the rover controller
-                let led = Led {
-                    red: req.red,
-                    green: req.green,
-                    blue: req.blue,
-                };
-
-                // This is what is sent back to the client (returns true if successful, false if not)
-                let mut response = LightsResponse { success: false };
-
-                // Try sending the led to the microcontroller
-                if rover_controller
-                    .send_led(&led)
-                    .await
-                    .inspect_err(|e| rosout!(node, LogLevel::Error, "failed to send request: {e}"))
-                    .is_ok()
-                {
-                    rosout!(
-                        node,
-                        LogLevel::Debug,
-                        "Lights value sent to microcontroller successfully!"
-                    );
-                    response = LightsResponse { success: true };
-                }
-
-                // Sends response to client
-                let _ = server
-                    .async_send_response(req_id, response)
-                    .await
-                    .inspect_err(|e| {
-                        rosout!(node, LogLevel::Error, "failed to send response: {e}")
-                    });
-            }
-
-            Err(e) => {
-                rosout!(node, LogLevel::Error, "failed to send response: {e}");
-            }
-        }
-    }
-}
-
-/// Creates the `lights_node`.
-fn create_node(ctx: &Context) -> Node {
-    // Create the lights node
-    ctx.new_node(
-        NodeName::new("/rustdds", "lights_node").expect("node naming"),
-        NodeOptions::new().enable_rosout(true),
-    )
-    .expect("node creation")
-}
-
-/// Creates the set of QOS policies used to power the networking functionality.
-///
-/// Note that these are a little arbitrary. It might be nice to define them in
-/// a shared crate library or at least find the 'best' values on the Rover
-/// for competition.
-fn qos() -> ros2_client::ros2::QosPolicies {
-    QosPolicyBuilder::new()
-        .history(ros2_client::ros2::policy::History::KeepLast { depth: 10 })
-        .reliability(ros2_client::ros2::policy::Reliability::Reliable {
-            max_blocking_time: ros2_client::ros2::Duration::from_millis(100),
-        })
-        .durability(ros2_client::ros2::policy::Durability::TransientLocal)
-        .build()
-}
-
-/// Starts 'spinning' the given `Node`.
-///
-/// This spawns a background task that runs until the Node is turned off.
-/// Without the spinner running, the Node is functionally useless. The same
-/// is true for Nodes in Python.
-fn spin(node: &mut Node) {
-    {
-        // try making the spinner task
-        let spinner = node
-            .spinner()
-            .inspect_err(|e| tracing::error!("failed to make spinner! see: {e}"))
-            .unwrap();
-
-        tokio::task::spawn(async move {
-            // note: this will 'spin' until the Node is dropped (meaning the
-            // program is shutting down)
-            let _ = spinner
-                .spin()
-                .await
-                .inspect_err(|e| tracing::warn!("failed to spin node! see: {e}"));
-        });
     }
 }
