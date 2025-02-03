@@ -3,6 +3,9 @@
 //! This node grabs data from each of the important sensors, providing it to
 //! other nodes through various topics.
 
+use core::net::IpAddr;
+
+use camino::Utf8PathBuf;
 use ros2_client::{log::LogLevel, rosout, Context};
 
 mod logic;
@@ -25,4 +28,26 @@ async fn main() {
 
     // make the node do stuff
     logic::spin(&mut sensors_node);
+}
+
+/// Information about how to reach the sensors.
+///
+/// For example, we'll try to reach the GPS at `{gps_ip}:{gps_port}`.
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct SensorSetup {
+    // gps
+    pub gps_ip: IpAddr,
+    pub gps_port: u16,
+
+    // mono + depth cameras
+    pub depth_camera_path: Utf8PathBuf,
+    pub mono_camera_path: Utf8PathBuf,
+
+    // battery
+    pub battery_monitor_ip: IpAddr,
+    pub battery_monitor_port: u16,
+
+    // imu
+    pub imu_ip: IpAddr,
+    pub imu_port: u16,
 }

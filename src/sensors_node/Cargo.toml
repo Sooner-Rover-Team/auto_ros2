@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+camino = "1.1"
 ros2-client = "0.7.6"
 serde = "1.0.217"
 soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "0.2.1" }
