@@ -2,7 +2,6 @@
 src/**/**.egg-info
 src/**/uv.lock
 **/__pycache__
-**/uv.lock
 
 # rust build stuff
 target/
