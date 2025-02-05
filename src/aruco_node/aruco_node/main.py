@@ -72,7 +72,7 @@ class ArucoNode(Node):
                 description="This is the aruco dictionary number to assume aruco tags are from which come from 'cv2.aruco' predefined dictionary enum",
            )
         ).get_parameter_value().string_value
-        self.marker_length = self.declare_parameter('marker_length', 0.174, # correlates to URC standard marker length
+        self.marker_length = self.declare_parameter('marker_length', 0.175, # correlates to URC standard marker length
            ParameterDescriptor(
                 description="This is the length (in meters) of the one side of the aruco marker you are tring to detect (not including white border).",
            )
@@ -194,6 +194,7 @@ class ArucoNode(Node):
             self.get_logger().info(f"Video Saved: '{self.video_path}'")
 
 def main(args=None):
+    """Handle spinning up and destroying a node"""
     rclpy.init(args=args)
     aruco_node = ArucoNode()
 
