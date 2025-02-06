@@ -7,25 +7,33 @@ import cv2 as cv
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-
+# *PARAMETERS*
+# cap: DEFAULT = cv.VideoCapture(0)
+# fps: DEFAULT = 30
+# topic name: DEFAULT = 'image'
+# run node with parameters: ros2 run aruco_node aruco_node --ros-args -p fps:=30
 class ImageCaptureNode(Node):
 
     def __init__(self):
         super().__init__("image_capture")
 
+        self.declare_parameter('fps', 30)
+        self.declare_parameter('topic', 'image')
+        self.declare_parameter('cam_idx', 0)
+
         # Create a camera capture device given a camera index
         # TODO: Make this an argument
-        self.cap = cv.VideoCapture(0)
+        self.cap = cv.VideoCapture(self.get_parameter('cam_idx').value)
         if not self.cap.isOpened():
             self.get_logger().info("Could not open camera")
             exit()
 
         # Define the image publisher
-        self.publisher_ = self.create_publisher(Image, 'image', 10)
+        self.publisher_ = self.create_publisher(Image, self.get_parameter('topic').value, 10)
         self.bridge = CvBridge()
 
         # Capture and publish frames at a certain fps
-        self.fps = 30
+        self.fps = self.get_parameter('fps').value
         self.timer = self.create_timer(1.0 / self.fps, self.publish_image)
 
     def publish_image(self):
