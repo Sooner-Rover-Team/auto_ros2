@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 camino = "1.1"
-ros2-client = "0.7.6"
+ros2-client = "0.8.0"
 serde = "1.0.217"
 soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "1.0.0" }
 tokio = { version = "1.42.0", features = [

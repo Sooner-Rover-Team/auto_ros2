@@ -1,2 +1,1 @@
-[patch.crates-io.autonomous_node]
-path = "/home/barrett/Documents/projects/Rover/auto_ros2/install/autonomous_node/share/autonomous_node/rust"
+[patch.crates-io]
