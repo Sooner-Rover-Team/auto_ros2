@@ -7,7 +7,15 @@ edition = "2021"
 camino = "1.1"
 ros2-client = "0.7.6"
 serde = "1.0.217"
-soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "0.2.1" }
-tokio = { version = "1.42.0", features = ["macros", "rt", "tokio-macros", "tracing", "rt-multi-thread", "time", "sync"] }
+soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "1.0.0" }
+tokio = { version = "1.42.0", features = [
+    "macros",
+    "rt",
+    "tokio-macros",
+    "tracing",
+    "rt-multi-thread",
+    "time",
+    "sync",
+] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
