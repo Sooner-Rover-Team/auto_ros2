@@ -23,6 +23,8 @@ Info about how the network is set up.
 
 ## GPS
 
-- MAC Addr: TODO
+The Piksi Multi (GPS controller)
+
+- MAC Addr: `8c:c8:f4:90:03:e5`
 - Static IP: `192.168.1.222`
 - Port: `55556` (TODO: is this configurable?)
