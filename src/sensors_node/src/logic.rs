@@ -94,8 +94,9 @@ pub async fn spawn_sensor_publisher_tasks(
         //
         // note: we use `0` for the port we bind on since it doesn't matter.
         // we're just sending stuff to people and assuming they get it.
-        let gps =
-            Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 0_u16).expect("gps creation");
+        let gps = Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 0_u16)
+            .await
+            .expect("gps creation");
 
         tokio::task::spawn(sensor_tasks::gps_task(
             gps,
@@ -111,55 +112,51 @@ mod sensor_tasks {
     use std::{sync::Arc, time::Duration};
 
     use ros2_client::{log::LogLevel, rosout, Node, Publisher};
-    use soro_gps::{Coordinate, ErrorInMm, Gps, Height, TimeOfWeek};
+    use soro_gps::Gps;
     use tokio::sync::RwLock;
 
     use crate::msg::{builtins::GeoPoint, sensors::GpsMessage};
 
     /// Publishes `GpsMessage`s when the GPS provides an update.
-    pub async fn gps_task(gps: Gps, gps_pub: Publisher<GpsMessage>, node: Arc<RwLock<Node>>) {
-        let mut coord_raw: Option<Coordinate>;
-        let mut height_raw: Option<Height>;
-        let mut error_raw: Option<ErrorInMm>;
-        let mut tow_raw: Option<TimeOfWeek>;
-
+    pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>, node: Arc<RwLock<Node>>) {
         // every 1/20th of a second, check for any updates.
         //
         // if the data is different, we'll publish it in a message.
         loop {
             // check for gps data
-            coord_raw = gps.coord();
-            height_raw = gps.height();
-            error_raw = gps.error();
-            tow_raw = gps.time_of_week();
+            let gps_data = match gps.get().await {
+                Ok(info) => info,
+                Err(e) => {
+                    tracing::warn!("Failed to get GPS data from sensors node! err: {e}");
+                    sleep_gps().await;
+                    continue;
+                }
+            };
+
+            // make a ros 2 msg from that info
+            let gps_message = GpsMessage {
+                coord: GeoPoint {
+                    latitude: gps_data.coord.lat,
+                    longitude: gps_data.coord.lon,
+                    altitude: gps_data.height.0,
+                },
+                error_mm: 0.0,
+                time_of_week: gps_data.tow.0,
+            };
+            tracing::debug!("Attempting to publish GPS message: {gps_message:?}");
 
             // if we got all the values, publish them!
-            if let (Some(coord), Some(height), Some(error), Some(tow)) =
-                (coord_raw, height_raw, error_raw, tow_raw)
-            {
-                let gps_message = GpsMessage {
-                    coord: GeoPoint {
-                        latitude: coord.lat,
-                        longitude: coord.lon,
-                        altitude: height.0,
-                    },
-                    error_mm: error.0,
-                    time_of_week: tow.0,
-                };
-                tracing::debug!("Attempting to publish GPS message: {gps_message:?}");
-
-                _ = gps_pub
-                    .async_publish(gps_message)
-                    .await
-                    .inspect_err(|e| {
-                        rosout!(
-                            node.blocking_read(), // FIXME: blocking might be bad here
-                            LogLevel::Warn,
-                            "failed to write GPS message! err: {e}"
-                        )
-                    })
-                    .inspect(|()| tracing::trace!("Published GPS message successfully!"));
-            }
+            _ = gps_pub
+                .async_publish(gps_message)
+                .await
+                .inspect_err(|e| {
+                    rosout!(
+                        node.blocking_read(), // FIXME: blocking might be bad here
+                        LogLevel::Warn,
+                        "failed to write GPS message! err: {e}"
+                    )
+                })
+                .inspect(|()| tracing::trace!("Published GPS message successfully!"));
 
             // sleep until gps can update
             //
@@ -168,6 +165,10 @@ mod sensor_tasks {
             // we won't get a response in time if that's the case.
             //
             // so 1/20th of a second should work fine. :D
+            sleep_gps().await;
+        }
+
+        async fn sleep_gps() {
             tokio::time::sleep(Duration::from_secs(1) / 20).await;
         }
     }
@@ -198,7 +199,9 @@ mod tests {
             )
             .unwrap();
         let gps_pub = node.create_publisher(&topic, None).unwrap();
-        let gps = Gps::new(Ipv4Addr::LOCALHOST.into(), 55556, 0).unwrap();
+        let gps = Gps::new(Ipv4Addr::LOCALHOST.into(), 55556, 0)
+            .await
+            .unwrap();
 
         // we ignore the error since we don't care if anything connects.
         //
