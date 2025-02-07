@@ -17,4 +17,6 @@ dev = [
     "colcon-common-extensions>=0.3.0",
     "colcon-ros-cargo>=0.2.0",
     "ruff>=0.9.4",
+    "empy==3.3.4",
+    "lark==1.2.2",
 ]
