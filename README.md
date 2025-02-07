@@ -27,7 +27,11 @@ To launch Python code, you typically use the `ros2` command. You'll need to sour
 # mine is here:
 source /usr/lib64/ros2-jazzy/setup.bash
 
-# next, compile the scripts using `colcon`
+# next, grab the scripts' dependencies using uv, then hop in its venv
+uv sync
+. ./venv/bin/activate
+
+# compile all ros2 packages using `colcon`
 colcon build --symlink-install
 
 # you'll get an `install/` folder inside the `auto_ros2` repo!
@@ -39,7 +43,7 @@ source install/local_setup.bash
 Great, you're set up to run the code! Fair warning: **each time you open a new terminal, you'll need to `source` those files.**
 
 ```bash
-# in ROS 2, you have to compile the Nodes before ROS 2 can run them.
+# in ROS 2, you have to compile packages before your changes are made.
 #
 # that means using `colcon`, like so:
 colcon build --symlink-install
@@ -48,10 +52,4 @@ colcon build --symlink-install
 ros2 run node_name node_name
 ```
 
-### Rust
-
-Rust is a bit easier. Make sure [it's installed](./CONTRIBUTING.md) and type:
-
-```bash
-cargo run
-```
+For info about installing any of those dependencies, including ROS 2, please see the [`CONTRIBUTING.md`](./CONTRIBUTING.md) file.

@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/autonomous_node"]
+members = ["src/autonomous_node", "src/lights_node"]
+
+[patch.crates-io]
+ros2-client = { git = "https://github.com/Sooner-Rover-Team/ros2-client", rev = "f232e23" }

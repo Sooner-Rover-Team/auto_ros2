@@ -17,3 +17,5 @@ target/
 .ropeproject
 .DS_Store
 **/.pdb
+**/.vscode
+**/.zed

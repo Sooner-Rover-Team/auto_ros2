@@ -1,11 +1,14 @@
 [package]
-name = "autonomous_node"
+name = "lights_node"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+feedback = { git = "https://github.com/onkoe/feedback", version = "0.2.2", default-features = false }
+futures-lite = "2.6.0"
 log4rs = "1.3.0"
 ros2-client = "0.7.6"
+serde = "1.0.217"
 tokio = { version = "1.43.0", features = [
     "macros",
     "rt",
@@ -16,3 +19,10 @@ tokio = { version = "1.43.0", features = [
 ] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[dev-dependencies]
+futures = { version = "0.3.31", default-features = false, features = [
+    "alloc",
+    "std",
+    "async-await",
+] }

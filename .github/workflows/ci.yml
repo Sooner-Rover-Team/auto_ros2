@@ -1,0 +1,46 @@
+name: CI
+on: ["push"]
+
+jobs:
+    ci:
+        # same as jetson :p
+        runs-on: ubuntu-22.04 
+        steps:
+            - uses: actions/checkout@v4
+
+            # grab uv, cargo, and ros 2
+            - uses: astral-sh/setup-uv@v5
+            - uses: moonrepo/setup-rust@v1
+            - uses: ros-tooling/setup-ros@v0.7
+              with:
+                required-ros-distributions: humble
+
+            # grab a python binary
+            - name: Set up Python
+              run: uv python install
+
+            # set up environment
+            - name: Install the project
+              run: |
+                uv sync --all-extras --dev
+                . .venv/bin/activate
+
+            # check python lints
+            - name: Lint and Format (Python)
+              run: |
+                uv tool run ruff check
+                uv tool run ruff format --check
+                
+            # and rust too
+            - name: Lint and Format (Rust)
+              run: |
+                cargo clippy
+                cargo fmt --check
+
+            # build the entire ROS 2 workspace just to ensure things work.
+            #
+            # this'll use colcon
+            - name: Build ROS 2 workspace
+              uses: ros-tooling/action-ros-ci@v0.3
+              with:
+                target-ros2-distro: humble
