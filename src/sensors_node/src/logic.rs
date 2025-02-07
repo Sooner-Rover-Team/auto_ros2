@@ -98,27 +98,22 @@ pub async fn spawn_sensor_publisher_tasks(
             .await
             .expect("gps creation");
 
-        tokio::task::spawn(sensor_tasks::gps_task(
-            gps,
-            gps_pub,
-            Arc::clone(&sensors_node),
-        ));
+        tokio::task::spawn(sensor_tasks::gps_task(gps, gps_pub));
         rosout!(locked_sensors_node, LogLevel::Debug, "made gps task!");
     }
 }
 
 /// A module made of tasks for each sensor.
 mod sensor_tasks {
-    use std::{sync::Arc, time::Duration};
+    use std::time::Duration;
 
-    use ros2_client::{log::LogLevel, rosout, Node, Publisher};
+    use ros2_client::Publisher;
     use soro_gps::Gps;
-    use tokio::sync::RwLock;
 
     use crate::msg::{builtins::GeoPoint, sensors::GpsMessage};
 
     /// Publishes `GpsMessage`s when the GPS provides an update.
-    pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>, node: Arc<RwLock<Node>>) {
+    pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>) {
         // every 1/20th of a second, check for any updates.
         //
         // if the data is different, we'll publish it in a message.
@@ -149,13 +144,7 @@ mod sensor_tasks {
             _ = gps_pub
                 .async_publish(gps_message)
                 .await
-                .inspect_err(|e| {
-                    rosout!(
-                        node.blocking_read(), // FIXME: blocking might be bad here
-                        LogLevel::Warn,
-                        "failed to write GPS message! err: {e}"
-                    )
-                })
+                .inspect_err(|e| tracing::warn!("failed to write GPS message! err: {e}"))
                 .inspect(|()| tracing::trace!("Published GPS message successfully!"));
 
             // sleep until gps can update
@@ -176,11 +165,10 @@ mod sensor_tasks {
 
 #[cfg(test)]
 mod tests {
-    use std::{net::Ipv4Addr, sync::Arc};
+    use std::net::Ipv4Addr;
 
     use ros2_client::{Context, MessageTypeName, Name, NodeName, NodeOptions};
     use soro_gps::Gps;
-    use tokio::sync::RwLock;
 
     #[tokio::test]
     async fn gps_task_doesnt_panic() {
@@ -206,7 +194,7 @@ mod tests {
         // we ignore the error since we don't care if anything connects.
         //
         // this just ensures that the thread doesn't panic! :D
-        let future = super::sensor_tasks::gps_task(gps, gps_pub, Arc::new(RwLock::new(node)));
+        let future = super::sensor_tasks::gps_task(gps, gps_pub);
         let _will_time_out =
             tokio::time::timeout(tokio::time::Duration::from_secs(2), future).await;
     }
