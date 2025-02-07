@@ -4,7 +4,7 @@
 //! other nodes through various topics.
 
 use core::net::{IpAddr, Ipv4Addr};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use camino::Utf8PathBuf;
 use ros2_client::{log::LogLevel, rosout, Context};
@@ -18,8 +18,9 @@ mod msg;
 async fn main() {
     // start logging
     tracing_subscriber::fmt()
-        .pretty()
-        .with_env_filter("RUST_LOG=debug")
+        .with_env_filter(
+            "RUST_LOG=ERROR,sensors_node=DEBUG,feedback=DEBUG,ros2_client[rosout_raw]=DEBUG,soro_gps=DEBUG,soro_sbp_gps=DEBUG",
+        )
         .init();
 
     let ctx = Context::new().expect("init ros 2 context");
@@ -39,6 +40,10 @@ async fn main() {
         Arc::new(RwLock::new(sensors_node)),
     )
     .await;
+
+    loop {
+        tokio::time::sleep(Duration::from_millis(20_000)).await;
+    }
 }
 
 /// Information about how to reach the sensors.
