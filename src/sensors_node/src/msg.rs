@@ -28,14 +28,16 @@ pub mod builtins {
 pub mod sensors {
     use ros2_client::Message;
 
-    use super::builtins::{GeoPoint, Vector3};
+    use super::builtins::Vector3;
 
     /// A message made from GPS data.
     ///
     /// Sent to `topic:sensors/gps`.
     #[derive(Clone, Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
     pub struct GpsMessage {
-        pub coord: GeoPoint,
+        pub lat: f64,
+        pub lon: f64,
+        pub height: f64,
         pub error_mm: f64,
         pub time_of_week: u32,
     }

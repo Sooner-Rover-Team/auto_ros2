@@ -110,7 +110,7 @@ mod sensor_tasks {
     use ros2_client::Publisher;
     use soro_gps::Gps;
 
-    use crate::msg::{builtins::GeoPoint, sensors::GpsMessage};
+    use crate::msg::sensors::GpsMessage;
 
     /// Publishes `GpsMessage`s when the GPS provides an update.
     pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>) {
@@ -130,11 +130,9 @@ mod sensor_tasks {
 
             // make a ros 2 msg from that info
             let gps_message = GpsMessage {
-                coord: GeoPoint {
-                    latitude: gps_data.coord.lat,
-                    longitude: gps_data.coord.lon,
-                    altitude: gps_data.height.0,
-                },
+                lat: gps_data.coord.lat,
+                lon: gps_data.coord.lon,
+                height: gps_data.height.0,
                 error_mm: 0.0,
                 time_of_week: gps_data.tow.0,
             };
