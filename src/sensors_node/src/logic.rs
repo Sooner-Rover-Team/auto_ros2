@@ -80,7 +80,7 @@ pub async fn spawn_sensor_publisher_tasks(
         let gps_topic = locked_sensors_node
             .create_topic(
                 &Name::new("/sensors", "gps").expect("valid topic name"),
-                MessageTypeName::new("sensors_node", "GpsMessage"),
+                MessageTypeName::new("interfaces", "GpsMessage"),
                 &qos(),
             )
             .expect("create gps topic");
@@ -180,7 +180,7 @@ mod tests {
         let topic = node
             .create_topic(
                 &Name::new("/test", "gps_task_doesnt_panic_topic").unwrap(),
-                MessageTypeName::new("sensors", "GpsMessage"),
+                MessageTypeName::new("interfaces", "GpsMessage"),
                 &super::qos(),
             )
             .unwrap();
