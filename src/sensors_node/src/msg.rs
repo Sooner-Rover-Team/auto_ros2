@@ -47,8 +47,17 @@ pub mod sensors {
     #[derive(Clone, Debug, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
     pub struct ImuMessage {
         accel: Vector3,
+
         gyro: Vector3,
+
+        /// `y` is the typical compass value, but we also measure the `x` and
+        /// `z` values for tilt information.
+        ///
+        /// These values are in degrees, and will always be within the range of
+        /// 0.0 to 360.0.
         compass: Vector3,
+
+        temp_c: f64,
     }
     impl Message for ImuMessage {}
 
