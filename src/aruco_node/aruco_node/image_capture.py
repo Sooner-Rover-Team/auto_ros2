@@ -16,25 +16,33 @@ class ImageCaptureNode(Node):
 
     def __init__(self):
         super().__init__("image_capture")
-
-        self.declare_parameter('fps', 30)
-        self.declare_parameter('topic', 'image')
-        self.declare_parameter('cam_idx', 0)
+        # Declare the parameters for the node
+        from rcl_interfaces.msg import ParameterDescriptor
+        self.cam_fps = self.declare_parameter('cam_fps', 30,
+            ParameterDescriptor(
+                description="The frames per second (FPS) of the camera you're capturing from",
+                read_only=True
+            )
+        ).get_parameter_value().integer_value
+        self.cam_idx = self.declare_parameter('cam_idx', 0,
+            ParameterDescriptor(
+                description="The camera index which defines which camera to capture from",
+                read_only=True
+            )
+        ).get_parameter_value().integer_value
 
         # Create a camera capture device given a camera index
-        # TODO: Make this an argument
-        self.cap = cv.VideoCapture(self.get_parameter('cam_idx').value)
+        self.cap = cv.VideoCapture(self.cam_idx)
         if not self.cap.isOpened():
             self.get_logger().info("Could not open camera")
             exit()
 
         # Define the image publisher
-        self.publisher_ = self.create_publisher(Image, self.get_parameter('topic').value, 10)
+        self.publisher_ = self.create_publisher(Image, 'image', 10)
         self.bridge = CvBridge()
 
         # Capture and publish frames at a certain fps
-        self.fps = self.get_parameter('fps').value
-        self.timer = self.create_timer(1.0 / self.fps, self.publish_image)
+        self.timer = self.create_timer(1.0 / self.cam_fps, self.publish_image)
 
     def publish_image(self):
         # Capture frame from camera
