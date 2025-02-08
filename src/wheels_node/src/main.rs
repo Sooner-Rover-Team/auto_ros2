@@ -2,13 +2,11 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use feedback::{prelude::RoverController, Wheels};
 use msg::WheelsMessage;
-use ros2_client::{
-    log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
-    NodeOptions, Subscription,
-};
+use ros2_client::{log::LogLevel, rosout, Context, MessageTypeName, Name, Subscription};
 
 use tokio_stream::StreamExt as _;
 
+mod logic;
 mod msg;
 
 #[tokio::main(flavor = "multi_thread")]
@@ -24,7 +22,7 @@ async fn main() {
     let ros2_context = Context::new().expect("init ros 2 context");
 
     // create the wheels node
-    let mut node = create_node(&ros2_context);
+    let mut node = logic::create_node(&ros2_context);
     rosout!(node, LogLevel::Info, "wheels node is online!");
 
     // make the wheels topic
@@ -44,7 +42,7 @@ async fn main() {
     let subscriber: Subscription<WheelsMessage> = node
         .create_subscription(
             &wheels_topic,
-            Some(qos()), // Apply the Quality of Service settings.
+            Some(logic::qos()), // Apply the Quality of Service settings.
         )
         .expect("create subscription");
 
@@ -57,7 +55,7 @@ async fn main() {
 
     // processes the recieved commands and sends the commands to the microcontroller
     let node_handle = node.logging_handle();
-    let join_handle = tokio::task::spawn(async move {
+    tokio::task::spawn(async move {
         let mut stream = Box::pin(subscriber.async_stream());
 
         while let Some(msg_result) = stream.next().await {
@@ -97,65 +95,5 @@ async fn main() {
     });
 
     // make the node do stuff
-    {
-        spin(&mut node);
-    }
-
-    if let Err(e) = join_handle.await {
-        eprintln!("Error in join_handle task: {:?}", e);
-    }
-
-    // What is thine purpose?
-    //tokio::time::sleep(Duration::from_secs(17)).await;
-
-    tracing::info!("wheels node is shutting down...");
-}
-
-/// Creates the `wheels_node`.
-fn create_node(ctx: &Context) -> Node {
-    // make the wheels node
-    ctx.new_node(
-        NodeName::new("/rustdds", "wheels_node").expect("node naming"),
-        NodeOptions::new().enable_rosout(true),
-    )
-    .expect("node creation")
-}
-
-/// Creates the set of QOS policies used to power the networking functionality.
-///
-/// Note that these are a little arbitrary. It might be nice to define them in
-/// a shared crate library or at least find the 'best' values on the Rover
-/// for competition.
-fn qos() -> ros2_client::ros2::QosPolicies {
-    QosPolicyBuilder::new()
-        .history(ros2_client::ros2::policy::History::KeepLast { depth: 10 })
-        .reliability(ros2_client::ros2::policy::Reliability::Reliable {
-            max_blocking_time: ros2_client::ros2::Duration::from_millis(100),
-        })
-        .durability(ros2_client::ros2::policy::Durability::TransientLocal)
-        .build()
-}
-
-/// Starts 'spinning' the given `Node`.
-///
-/// This spawns a background task that runs until the Node is turned off.
-/// Without the spinner running, the Node is functionally useless. The same
-/// is true for Nodes in Python.
-fn spin(node: &mut Node) {
-    {
-        // try making the spinner task
-        let spinner = node
-            .spinner()
-            .inspect_err(|e| tracing::error!("failed to make spinner! see: {e}"))
-            .unwrap();
-
-        tokio::task::spawn(async move {
-            // note: this will 'spin' until the Node is dropped (meaning the
-            // program is shutting down)
-            let _ = spinner
-                .spin()
-                .await
-                .inspect_err(|e| tracing::warn!("failed to spin node! see: {e}"));
-        });
-    }
+    logic::spin(&mut node);
 }
