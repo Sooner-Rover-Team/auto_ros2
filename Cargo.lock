@@ -1781,6 +1781,7 @@ dependencies = [
  "feedback",
  "log4rs",
  "ros2-client",
+ "serde",
  "tokio",
  "tokio-stream",
  "tracing",

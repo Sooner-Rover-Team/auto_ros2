@@ -1,12 +1,15 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-use feedback::{parse::Message, prelude::RoverController, Wheels};
+use feedback::{prelude::RoverController, Wheels};
+use msg::WheelsMessage;
 use ros2_client::{
     log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
     NodeOptions, Subscription,
 };
 
 use tokio_stream::StreamExt as _;
+
+mod msg;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
@@ -38,7 +41,7 @@ async fn main() {
     // subscribe to wheels topic and forward messages to the channel
     //
     // FIXME: use dedicated message type
-    let subscriber: Subscription<String> = node
+    let subscriber: Subscription<WheelsMessage> = node
         .create_subscription(
             &wheels_topic,
             Some(qos()), // Apply the Quality of Service settings.
@@ -71,27 +74,15 @@ async fn main() {
                 }
             };
 
-            // parse the message into something we can send to the microcontroller.
-            //
-            // FIXME: use message type instead. no need to parse here.
-            let wheels = match feedback::parse::parse(msg.as_bytes()) {
-                Ok(Message::Wheels(wheels)) => wheels,
-                Ok(other) => {
-                    rosout!(
-                        node_handle,
-                        LogLevel::Error,
-                        "other msg recvd. todo we're not parsing a str. {other:?}"
-                    );
-                    continue;
-                }
-                Err(e) => {
-                    rosout!(
-                        node_handle,
-                        LogLevel::Error,
-                        "Failed to parse. TODO we're not parsing a str {e}"
-                    );
-                    continue;
-                }
+            // make message into something we can send to the microcontroller.
+            let wheels = Wheels {
+                wheel0: msg.left_wheels,
+                wheel1: msg.left_wheels,
+                wheel2: msg.left_wheels,
+                wheel3: msg.right_wheels,
+                wheel4: msg.right_wheels,
+                wheel5: msg.right_wheels,
+                checksum: 0, // FIXME: this should be in the `feedback` crate!
             };
 
             // try sending it
