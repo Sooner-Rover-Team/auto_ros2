@@ -12,11 +12,10 @@ mod msg;
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
     // enable logging to terminal
-    // tracing_subscriber::fmt()
-    //     .pretty()
-    //     .with_max_level(tracing::Level::INFO)
-    //     .init();
-    log4rs::init_file("log4rs.yaml", Default::default()).expect("logging initialization");
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     // init ros2 context, which is just the DDS middleware
     let ros2_context = Context::new().expect("init ros 2 context");
