@@ -1,5 +1,6 @@
 import rclpy
-import rclpy.action import ActionServer
+from rclpy.action import ActionServer
+from rclpy.executors import MultiThreadedExecutor
 import matplotlib.pyplot as plt
 from rclpy.node import Node
 import cv2 as cv
@@ -11,7 +12,7 @@ import numpy as np
 # NOTE: This may not be the most effective, we could turn the image into an JPEG string or even define a custom ROS data type.
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-from interfaces.action import TrackArucoMarker
+from custom_interfaces.action import TrackArucoMarker
 
 # A map of aruco dictionary strings to opencv.aruco enum values
 aruco_dict_map = {
@@ -79,62 +80,82 @@ class ArucoNode(Node):
         self.get_logger().info("Finished creating aruco tracker")
 
         # Subscriber configuration
+        # TODO: Should we crash if we can't connect to image topic?
+        self.latest_image = None # Most recent video capture frame from subscriber
+        self.latest_ros_image = None # TODO: Get rid of me
         self.subscription = self.create_subscription(
                 Image, 'image', self.image_callback, 1)
         self.bridge = CvBridge()
         self.get_logger().info("Finished creating image subscriber")
 
-        # Useful log information on startup
-        self.get_logger().info(f"Set to detect the following aruco ids with marker length {self.marker_length}: {list(self.ids_to_detect)}")
-
+        # Action-server configuration
+        self.tracking_rate = self.create_rate(120) # 10 hz
         self._action_server = ActionServer(
             self,
             TrackArucoMarker,
             'track_aruco_marker',
-            self.image_callback)
+            self.tracking_callback)
+        self.get_logger().info("Finished creation action-server for aruco tracking")
 
+        # TODO: For testing
+        self.publisher_ = self.create_publisher(Image, 'aruco_tracking_image', 10)
 
-    def read_camera_config_file(self):
-        """Read the camera configuration file and return parameters"""
-        
-        # Try to open camera config file
-        fs = cv.FileStorage(self.camera_config_file, cv.FILE_STORAGE_READ)
-        if not fs.isOpened():
-            self.get_logger().error(f"Error opening camrea config file at {camera_config_file}")
-            exit(1)
-
-        camera_mat = fs.getNode("camera_matrix").mat()
-        dist_coeffs = fs.getNode("dist_coeffs").mat()
-        rep_error = fs.getNode("reproj_error").real()
-        fs.release()
-
-        return camera_mat, dist_coeffs, rep_error
 
     def image_callback(self, image_msg):
         """ Store the latest image for proccesing. """
         try:
             # Convert ROS2 Image to OpenCV format
             cv_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding='bgr8')
-
-            # Detect the marker ids
-            marker_corners, marker_ids = self.detect_aruco_markers(cv_image)
-
-            cv_detection_image = aruco.drawDetectedMarkers(cv_image, 
-                                                           marker_corners,
-                                                           marker_ids)
-
-            # Calculate pose for each marker
-            if (marker_ids is not None and len(marker_ids) != 0):
-                for img_points in marker_corners:
-                    retval, rvec, tvec = self.calculate_pose(img_points)
-
-
+            print("Getting new image")
+            self.latest_ros_image = image_msg
+            self.latest_image = cv_image
 
         except Exception as e:
             self.get_logger().error(f"Error processing image: {e}")
 
-    def tracking_callback(self, goal_handle):
-        pass
+    def handle_goal(self, goal_handle):
+        """"""
+
+    def execute_callback(self, goal_handle):
+        """"""
+        marker_id = goal_handle.request.marker_id
+        self.get_logger().info(f"Tracking Aruco marker with id {marker_id}...")
+
+        # TODO: Warn or reject action if there is no image topic to get images from
+
+        # Try to track the aruco tag
+        while True:
+            # Create a new feedback message
+            feedback = TrackArucoMarker.Feedback()
+            feedback.marker_transform.header.frame_id = "camera"
+            feedback.marker_transform.child_frame_id = f"marker_{marker_id}"
+            feedback.marker_in_view = False
+            # TODO: Eventually fill sec and nanosec in marker_transform using ROS libraries
+
+            if self.latest_image is not None:
+                self.publisher_.publish(self.latest_ros_image)
+                # Check for aruco markers in the frame
+                marker_corners, marker_ids = self.detect_aruco_markers(self.latest_image)
+                self.get_logger().info(f"Found the follwing markers in the frame: {marker_ids}")
+                self.get_logger().info(f"Found the follwing markers in the frame: {marker_corners}")
+
+
+            goal_handle.publish_feedback(feedback)
+            # TODO This probably isn't the best solution lol
+            self.tracking_rate.sleep()
+
+        return None
+
+        ## Detect the marker ids
+        #marker_corners, marker_ids = self.detect_aruco_markers(cv_image)
+
+        #cv_detection_image = aruco.drawDetectedMarkers(cv_image, 
+        #                                               marker_corners,
+        #                                               marker_ids)
+        ## Calculate pose for each marker
+        #if (marker_ids is not None and len(marker_ids) != 0):
+        #    for img_points in marker_corners:
+        #        retval, rvec, tvec = self.calculate_pose(img_points)
         
     def detect_aruco_markers(self, image):
         """Given an image, return detected aruco markers and rejected markers (candidates for aruco markers)"""
@@ -153,14 +174,32 @@ class ArucoNode(Node):
             self.obj_points, img_points, self.camera_mat, self.dist_coeffs
         )
         return retval, rvec, tvec
+    I
+    def read_camera_config_file(self):
+        """Read the camera configuration file and return parameters"""
+        
+        # Try to open camera config file
+        fs = cv.FileStorage(self.camera_config_file, cv.FILE_STORAGE_READ)
+        if not fs.isOpened():
+            self.get_logger().error(f"Error opening camrea config file at {camera_config_file}")
+            exit(1)
+
+        camera_mat = fs.getNode("camera_matrix").mat()
+        dist_coeffs = fs.getNode("dist_coeffs").mat()
+        rep_error = fs.getNode("reproj_error").real()
+        fs.release()
+
+        return camera_mat, dist_coeffs, rep_error
         
 def main(args=None):
     """Handle spinning up and destroying a node"""
     rclpy.init(args=args)
     aruco_node = ArucoNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(aruco_node)
 
     try:
-        rclpy.spin(aruco_node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
