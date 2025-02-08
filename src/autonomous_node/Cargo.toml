@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 log4rs = "1.3.0"
-ros2-client = "0.7.6"
+ros2-client = { version = "0.8.0" }
 tokio = { version = "1.43.0", features = [
     "macros",
     "rt",
