@@ -1,10 +1,9 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-use feedback::{prelude::RoverController, Wheels};
+use feedback::prelude::RoverController;
+use logic::wheels_task;
 use msg::WheelsMessage;
 use ros2_client::{log::LogLevel, rosout, Context, MessageTypeName, Name, Subscription};
-
-use tokio_stream::StreamExt as _;
 
 mod logic;
 mod msg;
@@ -54,45 +53,8 @@ async fn main() {
 
     // processes the recieved commands and sends the commands to the microcontroller
     let node_handle = node.logging_handle();
-    tokio::task::spawn(async move {
-        let mut stream = Box::pin(subscriber.async_stream());
+    tokio::task::spawn(wheels_task(subscriber, controller, node_handle));
 
-        while let Some(msg_result) = stream.next().await {
-            // get the data from it or log an err!
-            let (msg, _msg_info) = match msg_result {
-                Ok(t) => t,
-                Err(e) => {
-                    rosout!(
-                        node_handle,
-                        LogLevel::Warn,
-                        "Failed to parse message data! err: {e}"
-                    );
-                    continue;
-                }
-            };
-
-            // make message into something we can send to the microcontroller.
-            let wheels = Wheels {
-                wheel0: msg.left_wheels,
-                wheel1: msg.left_wheels,
-                wheel2: msg.left_wheels,
-                wheel3: msg.right_wheels,
-                wheel4: msg.right_wheels,
-                wheel5: msg.right_wheels,
-                checksum: 0, // FIXME: this should be in the `feedback` crate!
-            };
-
-            // try sending it
-            if let Err(e) = controller.send_wheels(&wheels).await {
-                rosout!(
-                    node_handle,
-                    LogLevel::Error,
-                    "Failed to send wheels command: {e}"
-                );
-            }
-        }
-    });
-
-    // make the node do stuff
+    // connect dds
     logic::spin(&mut node);
 }

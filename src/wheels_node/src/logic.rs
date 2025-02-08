@@ -1,4 +1,57 @@
-use ros2_client::{ros2::QosPolicyBuilder, Context, Node, NodeName, NodeOptions};
+use ros2_client::{
+    log::LogLevel, prelude::NodeLoggingHandle, ros2::QosPolicyBuilder, rosout, Context, Node,
+    NodeName, NodeOptions, Subscription,
+};
+
+use tokio_stream::StreamExt as _;
+
+use crate::msg::WheelsMessage;
+use feedback::{send::RoverController, Wheels};
+
+/// Keeps watch for messages from other nodes asking for a change in wheel
+/// speeds.
+pub async fn wheels_task(
+    subscriber: Subscription<WheelsMessage>,
+    controller: RoverController,
+    node_handle: NodeLoggingHandle,
+) {
+    let mut stream = Box::pin(subscriber.async_stream());
+
+    while let Some(msg_result) = stream.next().await {
+        // get the data from it or log an err!
+        let (msg, _msg_info) = match msg_result {
+            Ok(t) => t,
+            Err(e) => {
+                rosout!(
+                    node_handle,
+                    LogLevel::Warn,
+                    "Failed to parse message data! err: {e}"
+                );
+                continue;
+            }
+        };
+
+        // make message into something we can send to the microcontroller.
+        let wheels = Wheels {
+            wheel0: msg.left_wheels,
+            wheel1: msg.left_wheels,
+            wheel2: msg.left_wheels,
+            wheel3: msg.right_wheels,
+            wheel4: msg.right_wheels,
+            wheel5: msg.right_wheels,
+            checksum: 0, // FIXME: this should be in the `feedback` crate!
+        };
+
+        // try sending it
+        if let Err(e) = controller.send_wheels(&wheels).await {
+            rosout!(
+                node_handle,
+                LogLevel::Error,
+                "Failed to send wheels command: {e}"
+            );
+        }
+    }
+}
 
 /// Creates the `wheels_node`.
 pub fn create_node(ctx: &Context) -> Node {
