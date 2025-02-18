@@ -1,23 +1,21 @@
 import rclpy
-from rclpy.action import ActionServer
 from rclpy.executors import MultiThreadedExecutor
-# import matplotlib.pyplot as plt
 from rclpy.node import Node
 import cv2 as cv
 import cv2.aruco as aruco
-# import os
 import numpy as np
 from loguru import logger as llogger
-from typing import (Callable, Dict)
+from typing import Dict
 from dataclasses import dataclass
+
 #
 # Used to convert OpenCV Mat type to ROS Image type
-# NOTE: This may not be the most effective, we could turn the image into an JPEG string or even define a custom ROS data type.
-import rclpy.publisher
+# NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
 import rclpy.subscription
+import tf_transformations
 from sensor_msgs.msg import Image as RosImage
+from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
-from custom_interfaces.action import TrackArucoMarker
 
 # A map of aruco dictionary strings to opencv.aruco enum values
 aruco_dict_map = {
@@ -38,58 +36,6 @@ aruco_dict_map = {
     "7x7_250": aruco.DICT_7X7_250,
     "7x7_1000": aruco.DICT_7X7_1000
 }
-
-latest_image: cv.Mat | None = None
-"""The latest image received from the image subscriber (converted from RosImage to cv2.Mat)."""
-
-#image_publisher: rclpy.publisher.Publisher | None = None
-
-async def track_aruco_marker_callback(goal_handle: Callable):
-    marker_id = goal_handle.request.marker_id
-    llogger.debug(f"Tracking Aruco marker with id {marker_id}...")
-
-    # TODO: Warn or reject action if there is no image topic to get images from
-
-    # Try to track the aruco tag
-    while True:
-        # Create a new feedback message
-        #llogger.debug("Executing action")
-        """
-        feedback = TrackArucoMarker.Feedback()
-        feedback.marker_transform.header.frame_id = "camera"
-        feedback.marker_transform.child_frame_id = f"marker_{marker_id}"
-        feedback.marker_in_view = False
-        # TODO: Eventually fill sec and nanosec in marker_transform using ROS libraries
-
-        if self.latest_image is not None:
-            self.publisher_.publish(self.latest_ros_image)
-            # Check for aruco markers in the frame
-            marker_corners, marker_ids = self.detect_aruco_markers(self.latest_image)
-            self.get_logger().info(f"Found the follwing markers in the frame: {marker_ids}")
-            self.get_logger().info(f"Found the follwing markers in the frame: {marker_corners}")
-
-
-        goal_handle.publish_feedback(feedback)
-        # TODO This probably isn't the best solution lol
-        self.tracking_rate.sleep()
-        """
-
-    return None
-
-async def image_callback(image_msg: RosImage):
-    """ Store the latest image for proccesing. """
-    try:
-        # Convert ROS2 Image to OpenCV format
-        #cv_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding='bgr8')
-        #latest_image = cv_imageexecute_callback
-        #self.get_logger().info("Received Image")
-        llogger.debug("Received Image")
-        image_publisher.publish(latest_image)
-
-    except Exception as e:
-        #self.get_logger().error(f"Error processing image: {e}")
-        llogger.error(f"Error processing image: {e}")
-
 
 @dataclass(kw_only=True)
 class ArucoNode(Node):
@@ -122,6 +68,9 @@ class ArucoNode(Node):
     
     marker_length: float
     """Size of marker in meters."""
+
+    marker_id: int
+    """The ArUco marker ID to look for."""
     
     aruco_detector: aruco.ArucoDetector
     """Detects aruco markers."""
@@ -133,8 +82,7 @@ class ArucoNode(Node):
     """Image subscriber for aruco."""
     
     bridge = CvBridge()
-    """Converts images from ROS to cv2.Mat types"""
-    
+    """Converts images from ROS to cv2.Mat types"""    
 
     def __init__(self):
         super().__init__("aruco_node")
@@ -156,17 +104,20 @@ class ArucoNode(Node):
                 description="This is the length (in meters) of the one side of the aruco marker you are tring to detect (not including white border).",
            )
         ).get_parameter_value().double_value
+        self.marker_id = self.declare_parameter('marker_id', 0,
+           ParameterDescriptor(
+                description="The ArUco marker id to track.",
+           )
+        ).get_parameter_value().integer_value
 
         # Camera calibration configuration
-        #(
-        # self.camera_mat,
-        # self.dist_coeffs,
-        # self.rep_error
-        #) = self.read_camera_config_file()
-        #self.get_logger().info("Finished reading calibration information for camera")
-
-        # TODO: For testing
-        #image_publisher = self.create_publisher(RosImage, 'aruco_tracking_image', 10)
+        # TODO: PLEASE UNCOMMENT ME
+        (
+         self.camera_mat,
+         self.dist_coeffs,
+         self.rep_error
+        ) = self.read_camera_config_file()
+        self.get_logger().debug("Finished reading calibration information for camera")
 
         # Aruco detector configuration
         self.detector_params = aruco.DetectorParameters() # TODO: Look into this
@@ -180,39 +131,74 @@ class ArucoNode(Node):
             [ self.marker_length / 2, 0, -self.marker_length / 2], # Bottom-right
             [-self.marker_length / 2, 0, -self.marker_length / 2], # Bottom-left
         ])
-        llogger.info("Finished creating aruco tracker")
+        llogger.debug("Finished creating aruco tracker")
 
         # Subscriber configuration
         # TODO: Should we crash if we can't connect to image topic?
         # self.latest_image = None # Most recent video capture frame from subscriber
         self.image_subscription = self.create_subscription(
-            RosImage, 'image', image_callback, 1
+            RosImage, 'image', self.image_callback, 1
         )
-        llogger.info("Finished creating image subscriber")
+        llogger.debug("Finished creating image subscriber")
 
-        # Action-server configuration
-        self._action_server = ActionServer(
-            self,
-            TrackArucoMarker,
-            'track_aruco_marker',
-            track_aruco_marker_callback,
+        self.marker_pose_publisher = self.create_publisher(
+            PoseStamped, 'marker_pose', 0,
         )
-        llogger.info("Finished creation action-server for aruco tracking")
+        llogger.debug("Finished creating image subscriber")
 
+    def image_callback(self, image: RosImage):
+        """Get an image from the image topic and look for aruco tags."""
+        llogger.debug("Received image to look for aruco tag")
 
-        ## Detect the marker ids
-        #marker_corners, marker_ids = self.detect_aruco_markers(cv_image)
+        # Convert ROS image to cv2.Mat
+        cv_image = self.bridge.imgmsg_to_cv2(image)
 
-        #cv_detection_image = aruco.drawDetectedMarkers(cv_image, 
-        #                                               marker_corners,
-        #                                               marker_ids)
-        ## Calculate pose for each marker
-        #if (marker_ids is not None and len(marker_ids) != 0):
-        #    for img_points in marker_corners:
-        #        retval, rvec, tvec = self.calculate_pose(img_points)
+        # Detect the marker ids
+        detected_marker_corners, detected_marker_ids = self.detect_aruco_markers(cv_image)
+
+        # If we found the marker we're looking for,
+        # calculate and publish its pose.
+        if detected_marker_ids is not None:
+            try:
+                marker_id_index = list(detected_marker_ids).index(self.marker_id)
+
+                # Calculate the markers pose
+                calculated_pose, rvec, tvec = self.calculate_pose(
+                    detected_marker_corners[marker_id_index]
+                )
+
+                # Publish the markers transform
+                if calculated_pose:
+                    marker_pose_msg = PoseStamped()
+                    marker_pose_msg.header.stamp = self.get_clock().now().to_msg()
+                    marker_pose_msg.header.frame_id = "camera_frame"
+
+                    marker_pose_msg.pose.position.x = tvec[0][0]
+                    marker_pose_msg.pose.position.y = tvec[1][0]
+                    marker_pose_msg.pose.position.z = tvec[2][0]
+
+                    quaternion = tf_transformations.quaternion_from_euler(rvec[0][0], rvec[0][0], rvec[0][0])
+                    marker_pose_msg.pose.orientation.w = quaternion[0]
+                    marker_pose_msg.pose.orientation.x = quaternion[1]
+                    marker_pose_msg.pose.orientation.y = quaternion[2]
+                    marker_pose_msg.pose.orientation.z = quaternion[3]
+
+                    self.marker_pose_publisher.publish(marker_pose_msg)
+                    llogger.debug(f"Publishing pose of marker: {str(marker_pose_msg)}")
+                else:
+                    llogger.error("Could not calculate pose of detected marker")
+            except ValueError:
+                # sometimes, we find other markers, but we don't really care
+                # about those markers' transforms.
+                #
+                # so... we're done.
+                return
         
-    def detect_aruco_markers(self, image: RosImage):
-        """Given an image, return detected aruco markers and rejected markers (candidates for aruco markers)"""
+    def detect_aruco_markers(self, image: cv.Mat):
+        """
+        Given an image, return detected aruco markers and rejected markers
+        (candidates for aruco markers)
+        """
         # Detect markers (corners and ids) and possible corners (rejected)
         (
          detected_marker_corners,
@@ -235,7 +221,7 @@ class ArucoNode(Node):
         # Try to open camera config file
         fs = cv.FileStorage(self.camera_config_file, cv.FILE_STORAGE_READ)
         if not fs.isOpened():
-            llogger.error(f"Error opening camrea config file at {self.camera_config_file}")
+            llogger.error(f"Error opening camera config file at {self.camera_config_file}")
             exit(1)
 
         camera_mat = fs.getNode("camera_matrix").mat()
