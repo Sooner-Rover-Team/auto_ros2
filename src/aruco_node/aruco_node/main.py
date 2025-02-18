@@ -158,7 +158,7 @@ class ArucoNode(Node):
         llogger.debug("Received image to look for aruco tag")
 
         # Convert ROS image to cv2.Mat
-        cv_image = self.bridge.imgmsg_to_cv2(image)
+        cv_image: cv.Mat = self.bridge.imgmsg_to_cv2(image)
 
         # Detect the marker ids
         detected_marker_corners, detected_marker_ids = self.detect_aruco_markers(
@@ -252,8 +252,6 @@ def main(args=None):
     """Handle spinning up and destroying a node"""
     rclpy.init(args=args)
     aruco_node = ArucoNode()
-    executor = MultiThreadedExecutor()
-    executor.add_node(aruco_node)
 
     try:
         # rclpy.spin(aruco_node)
