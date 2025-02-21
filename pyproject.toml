@@ -24,6 +24,7 @@ members = [
 [dependency-groups]
 dev = [
     "mypy>=1.15.0",
+    "basedpyright>=1.27.1",
     "colcon-cargo>=0.1.3",
     "colcon-common-extensions>=0.3.0",
     "colcon-ros-cargo>=0.2.0",
