@@ -1,5 +1,4 @@
 import rclpy
-from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rcl_interfaces.msg import ParameterDescriptor
 import cv2 as cv
@@ -9,11 +8,11 @@ import numpy as np
 from loguru import logger as llogger
 from typing import Dict, Tuple, Sequence, Optional
 from dataclasses import dataclass
+from scipy.spatial.transform import Rotation as R  # SciPy for quaternion conversion
 
 # Used to convert OpenCV Mat type to ROS Image type
 # NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
 import rclpy.subscription
-import tf_transformations
 from sensor_msgs.msg import Image as RosImage
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge
@@ -155,7 +154,6 @@ class ArucoNode(Node):
 
     def image_callback(self, image: RosImage):
         """Get an image from the image topic and look for aruco tags."""
-        llogger.debug("Received image to look for aruco tag")
 
         # Convert ROS image to cv2.Mat
         cv_image: cv.Mat = self.bridge.imgmsg_to_cv2(image)
@@ -172,30 +170,32 @@ class ArucoNode(Node):
                 marker_id_index = list(detected_marker_ids).index(self.marker_id)
 
                 # Calculate the markers pose
-                calculated_pose, rvec, tvec = self.calculate_pose(
+                calculated_pose, quaternion, tvec = self.calculate_pose(
                     detected_marker_corners[marker_id_index]
                 )
+                llogger.debug(calculated_pose)
 
                 # Publish the markers transform
                 if calculated_pose:
                     marker_pose_msg = PoseStamped()
                     marker_pose_msg.header.stamp = self.get_clock().now().to_msg()
-                    marker_pose_msg.header.frame_id = "camera_frame"
+                    # TODO: This should probably be a parameter
+                    marker_pose_msg.header.frame_id = "camera"
 
-                    marker_pose_msg.pose.position.x = tvec[0][0]
-                    marker_pose_msg.pose.position.y = tvec[1][0]
-                    marker_pose_msg.pose.position.z = tvec[2][0]
+                    marker_pose_msg.pose.position.x = tvec[0]
+                    marker_pose_msg.pose.position.y = tvec[1]
+                    marker_pose_msg.pose.position.z = tvec[2]
 
-                    quaternion = tf_transformations.quaternion_from_euler(
-                        rvec[0][0], rvec[0][0], rvec[0][0]
-                    )
                     marker_pose_msg.pose.orientation.w = quaternion[0]
                     marker_pose_msg.pose.orientation.x = quaternion[1]
                     marker_pose_msg.pose.orientation.y = quaternion[2]
                     marker_pose_msg.pose.orientation.z = quaternion[3]
 
                     self.marker_pose_publisher.publish(marker_pose_msg)
-                    llogger.debug(f"Publishing pose of marker: {str(marker_pose_msg)}")
+                    llogger.debug(
+                        "Publishing pose of marker:\n"
+                        f"- {tvec[0]}, {tvec[0]}, {tvec[0]}\n"
+                    )
                 else:
                     llogger.error("Could not calculate pose of detected marker")
             except ValueError:
@@ -221,10 +221,20 @@ class ArucoNode(Node):
     def calculate_pose(self, img_points):
         """Given a set of image points (detected aruco corners), return the pose for the marker"""
         img_points = np.array(img_points, dtype=np.float32).reshape(4, 2)
-        retval, rvec, tvec = cv.solvePnP(
+        retval, cv_rvec, cv_tvec = cv.solvePnP(
             self.obj_points, img_points, self.camera_mat, self.dist_coeffs
         )
-        return retval, rvec, tvec
+
+        # Convert from cv2 camera coordinate system to robotic coordinate system
+        # (cv) x, y, z =>  (robot) z, x, y
+        cam_tvec = [cv_tvec[2][0], cv_tvec[0][0], cv_tvec[1][0]]
+
+        # Convert axis-angle format to rotation matrix format
+        cv_rmatrix, __ = cv.Rodrigues(cv_rvec)
+        cam_rmatrix = np.matmul(cv_rmatrix, np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]]))
+        cam_quaternion = R.from_matrix(cam_rmatrix).as_quat()
+
+        return retval, cam_quaternion, cam_tvec
 
     def read_camera_config_file(self):
         """Read the camera configuration file and return parameters"""

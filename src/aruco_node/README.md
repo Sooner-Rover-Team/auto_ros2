@@ -13,3 +13,7 @@ This node let's you specify a specific camera to capture frames from and then pu
 ### ChArUco Camera Calibration
 
 This script will let the user capture frames of a ChArUco calibration board and then use those frames to calculate a camera calibration yaml file which can be used to accurately estimate ArUco pose.
+
+# ROS Package Dependencies
+* `ros-rolling-sensor-msgs`
+* `ros-rolling-geometry-msgs`
