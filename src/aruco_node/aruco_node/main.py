@@ -1,11 +1,13 @@
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor
 import cv2 as cv
+import cv2.typing
 import cv2.aruco as aruco
 import numpy as np
 from loguru import logger as llogger
-from typing import Dict
+from typing import Dict, Tuple, Sequence, Optional
 from dataclasses import dataclass
 
 # Used to convert OpenCV Mat type to ROS Image type
@@ -59,7 +61,7 @@ class ArucoNode(Node):
     detector_params: aruco.DetectorParameters
     """Used to change the defaults in the detector's initializer."""
 
-    immage_subscription: rclpy.subscription.Subscription
+    image_subscription: rclpy.subscription.Subscription
     """Image subscriber for aruco."""
 
     bridge = CvBridge()
@@ -68,8 +70,6 @@ class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
         # Declare the parameters for the node
-        from rcl_interfaces.msg import ParameterDescriptor
-
         self.camera_config_file = (
             self.declare_parameter(
                 "camera_config_file",
@@ -205,7 +205,9 @@ class ArucoNode(Node):
                 # so... we're done.
                 return
 
-    def detect_aruco_markers(self, image: cv.Mat):
+    def detect_aruco_markers(
+        self, image: cv.Mat
+    ) -> Tuple[Sequence[cv.typing.MatLike], Optional[cv.typing.MatLike]]:
         """
         Given an image, return detected aruco markers and rejected markers
         (candidates for aruco markers)
