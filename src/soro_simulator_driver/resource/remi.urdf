@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+<robot name="REMI">
+    <webots>
+        <plugin type="soro_simulator_driver.driver.SoroDriver" />
+
+        <!--
+        name all the sensors.
+
+        note that the IMU is a combo of Gyro + Accelerometer + Compass
+         -->
+        <plugin type="webots_ros2_driver::Ros2IMU">
+            <inertialUnitName>inertial_unit</inertialUnitName>
+            <gyroName>gyro</gyroName>
+            <accelerometerName>accelerometer</accelerometerName>
+        </plugin>
+
+        <!-- <device reference="gyro" type="Gyro">
+            <ros>
+                <topicName>/sim/gyro</topicName>
+            </ros>
+        </device>
+
+        <device reference="accel" type="Accelerometer">
+            <ros>
+                <topicName>/sim/accel</topicName>
+            </ros>
+        </device>
+
+        <device reference="compass" type="Compass">
+            <ros>
+                <topicName>/sim/compass</topicName>
+            </ros>
+        </device> -->
+
+        <device reference="depth_camera" type="Camera">
+            <ros>
+                <!-- TODO: use Zed stuff instead of sample info -->
+                <!-- FIXME: this isn't a depth camera lol -->
+                <topicName>/sensors/depth_image</topicName>
+                <fieldOfView>2.0943951</fieldOfView>
+                <width>1920</width>
+                <height>1080</height>
+            </ros>
+        </device>
+
+        <device reference="mono_camera" type="Camera">
+            <ros>
+                <!-- TODO: use real camera specs -->
+                <topicName>/sensors/mono_image</topicName>
+                <fieldOfView>2.0943951</fieldOfView>
+                <width>1920</width>
+                <height>1080</height>
+            </ros>
+        </device>
+
+        <device reference="gps" type="GPS">
+            <ros>
+                <topicName>/sim/gps</topicName>
+                <type>Satellite</type>
+                <accuracy>0.02</accuracy> <!-- in meters -->
+            </ros>
+        </device>
+
+        <!--
+        define motors n all that
+         -->
+        <device reference="left_front_wheel_motor" type="Motor">
+            <ros />
+        </device>
+        <device reference="left_middle_wheel_motor" type="Motor">
+            <ros />
+        </device>
+        <device reference="left_back_wheel_motor" type="Motor">
+            <ros />
+        </device>
+        <device reference="right_front_wheel_motor" type="Motor">
+            <ros />
+        </device>
+        <device reference="right_middle_wheel_motor" type="Motor">
+            <ros />
+        </device>
+        <device reference="right_back_wheel_motor" type="Motor">
+            <ros />
+        </device>
+    </webots>
+</robot>
