@@ -2,6 +2,10 @@
 name = "autonomous"
 version = "0.2.0"
 requires-python = ">=3.13"
+dependencies = [
+    "loguru>=0.7.3",
+    "opencv-contrib-python>=4.11.0.86",
+]
 
 [tool.uv.sources]
 # if one python project depends on another, put it here!
@@ -9,10 +13,11 @@ requires-python = ">=3.13"
 # for now, though, it's empty. :D
 
 [tool.uv.workspace]
-members = ["src/navigator_node", "src/log_node"]
+members = ["src/navigator_node", "src/log_node", "src/aruco_node"]
 
 [dependency-groups]
 dev = [
+    "mypy>=1.15.0",
     "colcon-cargo>=0.1.3",
     "colcon-common-extensions>=0.3.0",
     "colcon-ros-cargo>=0.2.0",
