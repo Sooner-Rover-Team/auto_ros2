@@ -27,4 +27,8 @@ The Piksi Multi (GPS controller)
 
 - MAC Addr: `8c:c8:f4:90:03:e5`
 - Static IP: `192.168.1.222`
-- Port: `55556` (TODO: is this configurable?)
+- Port: `54555`
+
+### Notes on Configuration
+
+The Piksi Multi has its `udp client0` setting configured so that the client address is the Jestson Nano Orin's (i.e. `192.168.1.68:54555`).
