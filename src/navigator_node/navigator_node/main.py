@@ -54,11 +54,11 @@ class NavigatorNode(Node):
     """Publish wheel speeds to move the Rover."""
 
     # SUBSCRIBERS
-    _gps_subscription: Subscription
+    _rover_coord_subscription: Subscription
     """Subscribes to the rover's coordinate information."""
-    _aruco_subscription: Subscription
+    _aruco_marker_pose_subscription: Subscription | None = None
     """Subscribes to the aruco's markers pose information."""
-    _imu_subscription: Subscription
+    _rover_imu_subscription: Subscription
     """Subscribes to the rover's imu information."""
 
     # MESSAGES
@@ -96,7 +96,7 @@ class NavigatorNode(Node):
         """Create a new `NavigatorNode`"""
         super().__init__("navigator_node")
 
-        # Get relevant parameters
+        # PARAMETERS
         self.declare_parameter("rover_task", Parameter.Type.STRING)
         if not self.has_parameter("rover_task"):
             raise ValueError("Required parameter `rover_task` is missing")
@@ -110,7 +110,7 @@ class NavigatorNode(Node):
             f"Preparing Navigator Node for the following task: {self._rover_task}"
         )
 
-        # Create publishers
+        # PUBLISHERS
         self._wheels_publisher = self.create_publisher(
             msg_type=WheelsMessage,
             topic="/controls/wheels",
@@ -118,7 +118,30 @@ class NavigatorNode(Node):
         )
         llogger.info("Finished making publishers!")
 
-        # Create subscribers
+        # SUBSCRIBERS
+        self._rover_coord_subscription = self.create_subscription(
+            msg_type=GeoPointStamped,
+            topic="/sensors/gps",
+            callback=self.rover_coord_callback,
+            qos_profile=QUEUE_SIZE,
+        )
+
+        self._rover_imu_subscription = self.create_subscription(
+            msg_type=Imu,
+            topic="/sensors/imu",
+            callback=self.rover_imu_callback,
+            qos_profile=QUEUE_SIZE,
+        )
+
+        # Only create ArUco marker pose subscription if we're tracking ArUco markers
+        if self._rover_task == RoverTask.ARUCO_MARKER:
+            self._aruco_marker_pose_subscription = self.create_subscription(
+                msg_type=PoseStamped,
+                topic="/aruco",  # TODO: change to whatever the markers topic is
+                callback=self.aruco_marker_pose_callback,
+                qos_profile=QUEUE_SIZE,
+            )
+        llogger.info("Finished making subscribers!")
 
         # Create services
 
@@ -158,7 +181,7 @@ class NavigatorNode(Node):
         """Callback to set rover coordinate information."""
         pass
 
-    def marker_pose_callback(self, msg: PoseStamped):
+    def aruco_marker_pose_callback(self, msg: PoseStamped):
         """Callback to set marker pose information."""
         pass
 
