@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from time import sleep
 
 import rclpy
+from geographic_msgs.msg import GeoPointStamped
 from gps_msgs.msg import GPSFix as GpsFix
 from loguru import logger as llogger
 from rclpy.node import Node
@@ -16,7 +17,6 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64
 from typing_extensions import override
 
-from custom_interfaces.msg._gps_message import GpsMessage
 from custom_interfaces.msg._wheels_message import WheelsMessage
 from custom_interfaces.srv._lights import Lights
 from custom_interfaces.srv._lights import Lights_Request as LightsRequest
@@ -63,7 +63,7 @@ class SoroBridge(Node):
         super().__init__("soro_bridge")
 
         self.__gps_publisher = self.create_publisher(
-            GpsMessage, "/sensors/gps", QOS_PROFILE
+            GeoPointStamped, "/sensors/gps", QOS_PROFILE
         )
         self.__sim_gps_subscriber = self.create_subscription(
             GpsFix, "/sim/gps", self.sim_gps_callback, QOS_PROFILE
@@ -154,17 +154,12 @@ class SoroBridge(Node):
 
     def sim_gps_callback(self, msg: NavSatFix):
         """immediately publishes to the `/sensors/gps` topic after translating"""
-        translated: GpsMessage = GpsMessage()
+        translated: GeoPointStamped = GeoPointStamped()
 
-        translated.lat = msg.latitude
-        translated.lon = msg.longitude
-        translated.height = msg.altitude
-
-        # using some default values for now.
-        #
-        # FIXME: iirc, there's a gz msg ty with real values for these
-        translated.error_mm = 0.0
-        translated.time_of_week = 0
+        translated.position.latitude = msg.latitude
+        translated.position.longitude = msg.longitude
+        translated.position.altitude = msg.altitude
+        translated.header.stamp = self.get_clock().now().to_msg()
 
         llogger.debug(f"publishing gps info: {translated}")
         self.__gps_publisher.publish(translated)

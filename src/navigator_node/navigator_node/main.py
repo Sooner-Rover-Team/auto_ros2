@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 import rclpy
@@ -88,16 +88,18 @@ class NavigatorNode(Node):
 
     _goal_reached: bool = False
     """Whether or not the rover task has been completed."""
-    _coord_queue: list[GeoPoint] = field(default_factory=list)
 
     def __init__(self):
         """Create a new `NavigatorNode`"""
+        self._coord_queue: list[GeoPoint] = []
+        """The list of GNSS coordinates to traverse to."""
+
         super().__init__("navigator_node")
 
         # PARAMETERS
+
+        # Get the rover's task (Navigating to GNSS corodinate, Navigating to ArUco marker, etc.)
         self.declare_parameter("rover_task", Parameter.Type.STRING)
-        if not self.has_parameter("rover_task"):
-            raise ValueError("Required parameter `rover_task` is missing")
         try:
             self._rover_task = RoverTask[self.get_parameter("rover_task").value]
         except KeyError:
@@ -107,6 +109,22 @@ class NavigatorNode(Node):
         llogger.info(
             f"Preparing Navigator Node for the following task: {self._rover_task}"
         )
+
+        # If the rover's task is to not stand still, get the first coordinate to navigate to
+        if self._rover_task != RoverTask.STAY_STILL_BRO:
+            # Get the destination coordinate
+            self.declare_parameter("coord_latitude", Parameter.Type.DOUBLE)
+            self.declare_parameter("coord_longitude", Parameter.Type.DOUBLE)
+            dest_coord = GeoPoint(
+                latitude=self.get_parameter("coord_latitude").value,
+                longitude=self.get_parameter("coord_longitude").value,
+            )
+
+            # Add it to the coordinate queue
+            self._coord_queue.append(dest_coord)
+            llogger.info(
+                f"Set to navigate to: \n- ({dest_coord.latitude}, {dest_coord.longitude})"
+            )
 
         # PUBLISHERS
         self._wheels_publisher = self.create_publisher(
@@ -177,14 +195,17 @@ class NavigatorNode(Node):
 
     def rover_coord_callback(self, msg: GeoPointStamped):
         """Callback to set rover coordinate information."""
+        self._last_rover_coord = msg
         pass
 
     def aruco_marker_pose_callback(self, msg: PoseStamped):
         """Callback to set marker pose information."""
+        self._last_marker_pose = msg
         pass
 
     def rover_imu_callback(self, msg: Imu):
         """Callback to set rover imu information."""
+        self._last_rover_imu = msg
         pass
 
     def __hash__(self) -> int:
