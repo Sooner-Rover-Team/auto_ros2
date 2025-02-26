@@ -6,6 +6,16 @@
             <real_time_factor>1.0</real_time_factor>
         </physics>
 
+        <!-- this makes the world use wgs84 coordinates for everything -->
+        <spherical_coordinates>
+            <surface_model>EARTH_WGS84</surface_model>
+            <world_frame_orientation>ENU</world_frame_orientation>
+            <latitude_deg>-0.0</latitude_deg>
+            <longitude_deg>-0.0</longitude_deg>
+            <elevation>0</elevation>
+            <heading_deg>0</heading_deg>
+        </spherical_coordinates>
+
         <plugin
             filename="libignition-gazebo-physics-system.so"
             name="ignition::gazebo::systems::Physics"
@@ -153,7 +163,7 @@
                     <sensor name="navsat" type="navsat">
                         <always_on>1</always_on>
                         <update_rate>1</update_rate>
-                        <topic>navsat</topic>
+                        <topic>/navsat</topic>
                     </sensor>
 
                     <!--inertial properties of the link mass, inertia matix-->
