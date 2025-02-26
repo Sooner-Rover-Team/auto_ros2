@@ -1,20 +1,18 @@
-from enum import Enum
 from dataclasses import dataclass, field
-from loguru import logger as llogger
+from enum import Enum
 
-# rclpy
 import rclpy
+from geographic_msgs.msg import GeoPoint, GeoPointStamped
+from geometry_msgs.msg import PoseStamped
+from loguru import logger as llogger
+from rclpy.client import Client
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
-from rclpy.client import Client
 from rclpy.timer import Timer
-
-# ROS/Custom Message Types
-from geographic_msgs.msg import GeoPointStamped, GeoPoint
-from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
+
 from custom_interfaces.msg import WheelsMessage
 
 # how long we'll keep the data (DDS).
@@ -113,7 +111,7 @@ class NavigatorNode(Node):
         # PUBLISHERS
         self._wheels_publisher = self.create_publisher(
             msg_type=WheelsMessage,
-            topic="/controls/wheels",
+            topic="control/wheels",
             qos_profile=QUEUE_SIZE,
         )
         llogger.info("Finished making publishers!")
@@ -168,14 +166,14 @@ class NavigatorNode(Node):
         # Ensure rover coordinates are updating
 
         # Send wheel speeds depending on our current mode
-        wheel_speeds = WheelsMessage()
+        wheel_speeds_msg = WheelsMessage()
         match self._rover_task:
             case RoverTask.STAY_STILL_BRO:
-                wheel_speeds.left_wheels = 0
-                wheel_speeds.left_wheels = 0
+                wheel_speeds_msg.left_wheels = 0
+                wheel_speeds_msg.right_wheels = 0
                 llogger.info("The rover is just a chill guy")
 
-        self._wheels_publisher.publish(wheel_speeds)
+        self._wheels_publisher.publish(wheel_speeds_msg)
 
     def rover_coord_callback(self, msg: GeoPointStamped):
         """Callback to set rover coordinate information."""
