@@ -323,7 +323,7 @@ class NavigatorNode(Node):
         )  # takes source coordinate, radius in meters, and a number of points to generate
 
         # Run navigator callback every 0.5 seconds
-        self._navigator_callback_timer = self.create_timer(0.5, self.navigator)
+        self._navigator_callback_timer = self.create_timer(0.2, self.navigator)
         _ = self.get_logger().info("Started nav timer. Navigating shortly...")
 
     # all ROS 2 nodes must be hashable!
@@ -346,9 +346,7 @@ class NavigatorNode(Node):
 
     def navigator(self):
         """
-        TODO: docs...
-
-        Driven by a `rclpy::Timer`.
+        In charge of initiating navigation tasks depending on the current state of the rover.
         """
 
         # If goal is reached, turn the node off
@@ -384,11 +382,12 @@ class NavigatorNode(Node):
         #     llogger.warning("gps coord hasn't updated; cannot navigate")
         #     return
 
-        # when we haven't reached the coords yet (step 1), keep navigating to current coordinates (if not stopped to look at a tag)
+        # (Step 1):
+        # If we are not stopped to calculate the coordinates of an ArUco marker,
+        # check status of current destination coordinate.
         if not self.calculating_aruco_coord:
-            # get current target coordinate from coordinate queue
+            # Calculate the distance to the current destination coordinate
             target_coord: GeoPoint = self._coordinate_path_queue[0]
-            # calculate distance to target
             dist_to_target_coord_m = distance(
                 [target_coord.latitude, target_coord.longitude],
                 [
@@ -397,7 +396,7 @@ class NavigatorNode(Node):
                 ],
             ).meters
 
-            # Check if destination is reacheed
+            # Check if we've reached the destination
             if dist_to_target_coord_m < MIN_GPS_DISTANCE:
                 _ = self.get_logger().info("Reached destination coordinate!")
                 # in GPS mode, we're only navigating to a coordinate.
@@ -415,18 +414,10 @@ class NavigatorNode(Node):
 
                 # in ArUco or object detection mode, we want to move on to the next coordinate (provided by calculation)
                 _ = self._coordinate_path_queue.pop(0)
-            else:
+            else:  # We have not reached the destination.
                 """Based on the target coordinate and the current coordinate of the Rover, we want to activate the
                 go_to_coordinate async function to have the Rover start moving toward a coordinate. If the function is already
                 running with the same coordinate, no need to stop the current function running."""
-                # PID Controller function to send wheel speeds
-                #
-                # if we want to go somewhere else, we replace `self._go_to_coordinate_cor` with
-                # another Coroutine.
-                #
-                # doing so will have the Rover moving while we make decisions.
-                #
-                # we can also cancel the Task
                 if self._last_searched_coord != target_coord:
                     self._go_to_coordinate_cor = self._go_to_coordinate(
                         target_coord
@@ -548,11 +539,9 @@ class NavigatorNode(Node):
         This is a simple implementation that uses a PID controller to navigate to the coordinate, based
         on the rover's current position and the destination coordinate.
         """
-        # Make sure that we are receiving rover imu and coordinates
+        # Make sure we are receiving GPS information for the rover.
         # TODO: Implement a version of this function that actually uses the IMU compass data. For now, we're just using the GPS data
-        # if self._last_known_imu_data is None:
-        #     llogger.warning("IMU data not yet received; cannot navigate to coordinate")
-        #     return
+        llogger.debug(f"Navigating to {dest_coord}")
         if self._last_known_rover_coord is None:
             llogger.warning(
                 "GPS data not yet received; cannot navigate to coordinate"
