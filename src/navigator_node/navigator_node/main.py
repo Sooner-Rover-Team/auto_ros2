@@ -1,9 +1,11 @@
+import math
 from dataclasses import dataclass
 from enum import Enum
 
 import rclpy
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
 from geometry_msgs.msg import PoseStamped
+from geopy.distance import distance
 from loguru import logger as llogger
 from rclpy.client import Client
 from rclpy.node import Node
@@ -12,11 +14,16 @@ from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.timer import Timer
 from sensor_msgs.msg import Imu
+from simple_pid import PID
 
 from custom_interfaces.msg import WheelsMessage
 
 # how long we'll keep the data (DDS).
 QUEUE_SIZE: int = 10
+
+# Distances to complete goals for URC competition
+MAX_DIST_FROM_GNSS_COORD = 3  # meters
+MAX_DIST_FROM_ARUCO_MARKER = 2  # meters
 
 
 class RoverTask(Enum):
@@ -64,7 +71,10 @@ class NavigatorNode(Node):
     """The last known rover coordinate information."""
     _last_marker_pose: PoseStamped | None = None
     """The last known marker pose information."""
-    _last_imu_data: Imu | None = None
+    _last_rover_imu_data: Imu | None = None
+    """The last known rover imu information"""
+    _last_rover_wheels_message: WheelsMessage | None = None
+    """The last rover wheel speeds sent."""
 
     # SERVICE CLIENTS
     _lights_client: Client
@@ -88,6 +98,22 @@ class NavigatorNode(Node):
 
     _goal_reached: bool = False
     """Whether or not the rover task has been completed."""
+
+    _nav_mode: NavigationMode = NavigationMode.STANDBY
+    """The current mode of navigation."""
+
+    # TODO: Make these parameters and not optional/default values
+    _pid_kp: float
+    """The value for the proportional gain in the PID controller"""
+
+    _pid_ki: float
+    """The value for the integral gain in the PID controller"""
+
+    _pid_kd: float
+    """The value for the derivative gain in the PID controller"""
+
+    _pid_controller: PID
+    """The PID controller used for any given task."""
 
     def __init__(self):
         """Create a new `NavigatorNode`"""
@@ -126,6 +152,15 @@ class NavigatorNode(Node):
                 f"Set to navigate to: \n- ({dest_coord.latitude}, {dest_coord.longitude})"
             )
 
+            # Since we have a coordinate to navigate to, tell the rover to go to it
+            self._nav_mode = NavigationMode.NAV_TO_GNSS
+
+            # Create the pid controller needed to navigate to GNSS coordinates
+            self._pid_pk, self._pid_pi, self._pid_pd = 0, 0, 0
+            self._pid_controller = PID(
+                self._pid_pk, self._pid_pi, self._pid_pd, setpoint=0
+            )  # The goal for the PID controller is to make the rover's angle to the destination 0
+
         # PUBLISHERS
         self._wheels_publisher = self.create_publisher(
             msg_type=WheelsMessage,
@@ -163,50 +198,131 @@ class NavigatorNode(Node):
 
         # Plot path to goal
 
+        # Before we start navigating, make sure the rover is still
+        self._wheels_publisher.publish(
+            WheelsMessage(left_wheels=0, right_wheels=0)
+        )
+        self._last_rover_wheels_message = WheelsMessage(
+            left_wheels=0, right_wheels=0
+        )
         # Start navigating
         self._navigator_callback_timer = self.create_timer(0.5, self.navigator)
         llogger.info("Starting navigation!")
 
     def navigator(self):
         """Send wheel speeds depending on current mode of the rover."""
-        llogger.debug("Navigating!")
-
         # Ensure navigation parameters were specified
         if self._rover_task is None:
             llogger.error("No rover task was specified!")
             self.destroy_node()
             rclpy.shutdown()
 
-        # Check if goal was reached
-
         # Ensure we've started receiving rover coordinates
+        if self._last_rover_coord is None:
+            llogger.info("Waiting for rover coordinates...")
+            # NOTE: Maybe this should change nav mode?
+            return
+
+        # Check if goal was reached
+        if self._goal_reached:
+            llogger.info("The goal has been reached!")
+            self._nav_mode = NavigationMode.STANDBY
 
         # Ensure rover coordinates are updating
 
         # Send wheel speeds depending on our current mode
-        wheel_speeds_msg = WheelsMessage()
-        match self._rover_task:
-            case RoverTask.STAY_STILL_BRO:
+        wheel_speeds_msg = WheelsMessage(left_wheels=0, right_wheels=0)
+        match self._nav_mode:
+            case NavigationMode.STANDBY:
+                llogger.info("The rover is just a chill guy")
                 wheel_speeds_msg.left_wheels = 0
                 wheel_speeds_msg.right_wheels = 0
-                llogger.info("The rover is just a chill guy")
+            case NavigationMode.NAV_TO_GNSS:
+                dest_coord = self._coord_queue[0]
+                llogger.info(
+                    f"Rover is navigating to GNSS:\n- {dest_coord.latitude, dest_coord.longitude}"
+                )
+                # Calculate distance from current destination
+                dist_from_coord = distance(
+                    (
+                        self._last_rover_coord.position.latitude,
+                        self._last_rover_coord.position.longitude,
+                    ),
+                    (dest_coord.latitude, dest_coord.longitude),
+                ).meters
+                llogger.debug(f"Distance from coord: {dist_from_coord}")
 
+                # See if we've made it to our destination
+                # NOTE: May have to check if coordinate queue is empty too
+                if dist_from_coord < MAX_DIST_FROM_GNSS_COORD:
+                    # NOTE: Maybe reset pid controller?
+                    self._goal_reached = True
+                else:  # Else keep navigating
+                    wheel_speeds_msg = self.wheel_speeds_for_nav_to_gnss(
+                        dest_coord
+                    )
+
+        llogger.debug(
+            f"Sending the following wheel speeds:\n {wheel_speeds_msg}"
+        )
         self._wheels_publisher.publish(wheel_speeds_msg)
+
+    def wheel_speeds_for_nav_to_gnss(self, dest_coord):
+        """Given a pid controller and destination coordinates, give the wheel speeds needed reach the destination."""
+
+        # Utility functions
+        def get_angle_to_dest() -> float:
+            """Calculate the angle from the robot to the destination."""
+            # TODO: Double check trigonometry
+            unnormalized_angle = math.atan2(
+                dest_coord.latitude - self._last_rover_coord.position.latitude,
+                dest_coord.longitude
+                - self._last_rover_coord.position.longitude,
+            )
+            # Normalize the angle to be between -pi and pi
+            normalized_angle = (unnormalized_angle + math.pi) % (
+                2 * math.pi
+            ) - math.pi
+            return normalized_angle
+
+        # Calculate the current PID value which based off of the rover's current angle to the destination.
+        angle_to_dest = get_angle_to_dest()
+        llogger.debug(f"Angle to dest is {angle_to_dest}")
+        control = self._pid_controller(angle_to_dest)
+        llogger.debug(f"Control value from PID is: {control}")
+        if control is None:
+            llogger.error("PID could not calculate correction value!")
+            return
+
+        # Correct the last send rover wheel speeds with the PID control value
+        # NOTE: This feels wrong
+        wheel_speeds_msg = WheelsMessage()
+        wheel_speeds_msg.right_wheels = int(
+            self._last_rover_wheels_message.left_wheels + control
+        )
+        wheel_speeds_msg.left_wheels = int(
+            self._last_rover_wheels_message.right_wheels - control
+        )
+
+        # Make sure the wheel speeds are moving a little bit
+        if wheel_speeds_msg.left_wheels == 0:
+            wheel_speeds_msg.left_wheels = 20
+        if wheel_speeds_msg.right_wheels == 0:
+            wheel_speeds_msg.right_wheels = 20
+
+        return wheel_speeds_msg
 
     def rover_coord_callback(self, msg: GeoPointStamped):
         """Callback to set rover coordinate information."""
         self._last_rover_coord = msg
-        pass
 
     def aruco_marker_pose_callback(self, msg: PoseStamped):
         """Callback to set marker pose information."""
         self._last_marker_pose = msg
-        pass
 
     def rover_imu_callback(self, msg: Imu):
         """Callback to set rover imu information."""
         self._last_rover_imu = msg
-        pass
 
     def __hash__(self) -> int:
         return super().__hash__()
