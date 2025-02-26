@@ -264,8 +264,7 @@ def main(args=None):
     aruco_node = ArucoNode()
 
     try:
-        # rclpy.spin(aruco_node)
-        executor.spin()
+        rclpy.spin(aruco_node)
     except KeyboardInterrupt:
         pass
     finally:
