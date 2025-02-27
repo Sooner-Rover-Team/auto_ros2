@@ -12,7 +12,7 @@ from rclpy.parameter import Parameter
 from rclpy.publisher import Publisher
 from rclpy.subscription import Subscription
 from rclpy.timer import Timer
-from sensor_msgs.msg import Imu
+from custom_interfaces.msg import ImuMessage
 from simple_pid import PID
 
 from custom_interfaces.msg import WheelsMessage
@@ -73,7 +73,7 @@ class NavigatorNode(Node):
     """The last known rover coordinate information."""
     _last_marker_pose: PoseStamped | None = None
     """The last known marker pose information."""
-    _last_rover_imu_data: Imu | None = None
+    _last_rover_imu_data: ImuMessage | None = None
     """The last known rover imu information"""
     _last_rover_wheels_message: WheelsMessage | None = None
     """The last rover wheel speeds sent."""
@@ -184,7 +184,7 @@ class NavigatorNode(Node):
         )
 
         self._rover_imu_subscription = self.create_subscription(
-            msg_type=Imu,
+            msg_type=ImuMessage,
             topic="/sensors/imu",
             callback=self.rover_imu_callback,
             qos_profile=QUEUE_SIZE,
@@ -333,7 +333,7 @@ class NavigatorNode(Node):
         """Callback to set marker pose information."""
         self._last_marker_pose = msg
 
-    def rover_imu_callback(self, msg: Imu):
+    def rover_imu_callback(self, msg: ImuMessage):
         """Callback to set rover imu information."""
         self._last_rover_imu = msg
 

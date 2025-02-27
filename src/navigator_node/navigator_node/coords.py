@@ -36,9 +36,9 @@ def get_angle_to_dest(
 
     long_diff = dest_long - curr_long
 
-    # SHOULD Y AND X BE SWITCHED?
-    #y = math.sin(long_diff) * math.cos(dest_lat)
-    y = math.sin(long_diff) * math.cos(curr_lat)
+    # From dest or from curr?
+    #y = math.sin(long_diff) * math.cos(curr_lat)
+    y = math.sin(long_diff) * math.cos(dest_lat)
     x = math.cos(curr_lat) * math.sin(dest_lat) - math.sin(curr_lat) * math.cos(
         dest_lat
     ) * math.cos(long_diff)
@@ -50,7 +50,7 @@ def get_angle_to_dest(
     # NOTE: This assumes that the compass is level at all times
     bearing_deg = math.degrees(math.atan2(current_imu.compass.y, current_imu.compass.x))
     rover_bearing = (bearing_deg + 360) % 360
-    
+
     llogger.debug(f"Rover Bearing: {rover_bearing}")
 
     # Find the difference between bearing to destination and current orientation
