@@ -5,7 +5,10 @@ use ros2_client::{
 };
 use soro_gps::Gps;
 
-use crate::{msg::sensors::GpsMessage, SensorSetup};
+use crate::{
+    msg::sensors::{GpsMessage, ImuMessage},
+    SensorSetup,
+};
 
 /// Creates the `sensors_node`.
 #[tracing::instrument(skip(ctx))]
@@ -89,16 +92,43 @@ pub async fn spawn_sensor_publisher_tasks(
         tokio::task::spawn(sensor_tasks::gps_task(gps, gps_pub));
         rosout!(sensors_node, LogLevel::Debug, "made gps task!");
     }
+
+    // spawn imu task
+    {
+        // imu_task
+        let imu_topic = sensors_node
+            .create_topic(
+                &Name::new("/sensors", "imu").expect("valid topic name"),
+                MessageTypeName::new("custom_interfaces", "ImuMessage"),
+                &qos(),
+            )
+            .expect("create imu topic");
+
+        let imu_pub = sensors_node
+            .create_publisher::<ImuMessage>(&imu_topic, Some(qos()))
+            .expect("create imu publisher");
+
+        tokio::task::spawn(sensor_tasks::imu_task(imu_pub));
+        rosout!(sensors_node, LogLevel::Debug, "made gps task!");
+    }
 }
 
 /// A module made of tasks for each sensor.
 mod sensor_tasks {
-    use std::time::Duration;
+    use std::{net::Ipv4Addr, time::Duration};
 
+    use feedback::parse::Message;
     use ros2_client::Publisher;
     use soro_gps::Gps;
+    use tokio::net::UdpSocket;
 
-    use crate::msg::sensors::GpsMessage;
+    use crate::{
+        msg::{
+            builtins::Vector3,
+            sensors::{GpsMessage, ImuMessage},
+        },
+        SensorSetup,
+    };
 
     /// Publishes `GpsMessage`s when the GPS provides an update.
     pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>) {
@@ -147,6 +177,64 @@ mod sensor_tasks {
 
         async fn sleep_gps() {
             tokio::time::sleep(Duration::from_secs(1) / 20).await;
+        }
+    }
+
+    pub async fn imu_task(imu_pub: Publisher<ImuMessage>) {
+        let sock: UdpSocket =
+            UdpSocket::bind((Ipv4Addr::UNSPECIFIED, SensorSetup::default().imu_port))
+                .await
+                .expect("imu sock should connect");
+        let mut buf: Vec<u8> = Vec::with_capacity(128);
+
+        // grab data and parse
+        loop {
+            buf.clear();
+            let recv_res = sock.recv_from(&mut buf).await;
+
+            // make sure it was read alright
+            let Ok((_bytes_read, _from_addr)) = recv_res else {
+                tracing::warn!("failed to read");
+                continue;
+            };
+
+            // parse into a struct
+            let Ok(parsed_msg) = feedback::parse::parse(&buf) else {
+                tracing::warn!("failed to parse");
+                continue;
+            };
+
+            // make sure it's the right kind
+            let Message::Imu(imu_raw) = parsed_msg else {
+                tracing::warn!("wrong msg ty");
+                continue;
+            };
+
+            // make a ros 2 message from that parsed info
+            let msg = ImuMessage {
+                accel: Vector3 {
+                    x: imu_raw.accel_x,
+                    y: imu_raw.accel_y,
+                    z: imu_raw.accel_z,
+                },
+                gyro: Vector3 {
+                    x: imu_raw.gyro_x,
+                    y: imu_raw.gyro_y,
+                    z: imu_raw.gyro_z,
+                },
+                compass: Vector3 {
+                    x: imu_raw.compass_x,
+                    y: imu_raw.compass_y,
+                    z: imu_raw.compass_z,
+                },
+                temp_c: imu_raw.temp_c,
+            };
+
+            // publish it
+            _ = imu_pub
+                .async_publish(msg)
+                .await
+                .inspect_err(|e| tracing::error!("failed to publish imu msg. err: {e}"));
         }
     }
 }

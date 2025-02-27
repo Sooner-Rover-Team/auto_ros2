@@ -90,10 +90,10 @@ impl Default for SensorSetup {
             depth_camera_path: Utf8PathBuf::new(), // TODO: this is pretty bad
             mono_camera_path: Utf8PathBuf::new(),  // and this too
 
-            battery_monitor_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            battery_monitor_ip: ebox_microcontroller_ip,
             battery_monitor_port: 5007,
 
-            imu_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            imu_ip: ebox_microcontroller_ip,
             imu_port: 5006,
         }
     }
