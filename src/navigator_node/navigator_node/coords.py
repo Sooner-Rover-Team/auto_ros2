@@ -15,6 +15,14 @@ from loguru import logger as llogger
 from custom_interfaces.msg import ImuMessage
 from tf_transformations import euler_from_quaternion
 
+# Calculate the error with just gps information, nothing else
+def get_angle_to_dest_gps(
+    current_coord: GeoPointStamped,
+    dest_coord: GeoPoint,
+) -> float:
+    """Calculate the angle from the robot to the destination."""
+    
+    return 0.0
 
 # Calculate the error
 def get_angle_to_dest(
