@@ -48,8 +48,9 @@ def get_angle_to_dest(
 
     # Get the rover's current angle
     # NOTE: This assumes that the compass is level at all times
-    bearing_deg = math.degrees(math.atan2(current_imu.compass.y, current_imu.compass.x))
-    rover_bearing = (bearing_deg + 360) % 360
+    #bearing_deg = math.degrees(math.atan2(current_imu.compass.y, current_imu.compass.x))
+    #rover_bearing = (bearing_deg + 360) % 360
+    rover_bearing = current_imu.compass.y # assuming y is the bearing
 
     llogger.debug(f"Rover Bearing: {rover_bearing}")
 
