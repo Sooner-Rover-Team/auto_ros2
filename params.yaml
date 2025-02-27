@@ -1,0 +1,5 @@
+navigator_node:
+  ros__parameters:
+    rover_task: GNSS_COORD
+    coord_latitude: 0.0001
+    coord_longitude: 0.0001

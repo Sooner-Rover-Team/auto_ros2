@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -17,6 +16,8 @@ from sensor_msgs.msg import Imu
 from simple_pid import PID
 
 from custom_interfaces.msg import WheelsMessage
+
+from .coords import get_angle_to_dest
 
 # how long we'll keep the data (DDS).
 QUEUE_SIZE: int = 10
@@ -45,7 +46,8 @@ class NavigationMode(Enum):
 
     STANDBY = 0
     NAV_TO_GNSS = 1
-    CALC_ARUCO_MARKER_POSE = 2
+    ROTATE_TO_GNSS = 2
+    CALC_ARUCO_MARKER_POSE = 3
 
 
 @dataclass(kw_only=True)
@@ -152,11 +154,15 @@ class NavigatorNode(Node):
                 f"Set to navigate to: \n- ({dest_coord.latitude}, {dest_coord.longitude})"
             )
 
-            # Since we have a coordinate to navigate to, tell the rover to go to it
-            self._nav_mode = NavigationMode.NAV_TO_GNSS
+            # Since we have a coordinate to navigate to, let's start by rotating to it
+            self._nav_mode = NavigationMode.ROTATE_TO_GNSS
 
             # Create the pid controller needed to navigate to GNSS coordinates
-            self._pid_pk, self._pid_pi, self._pid_pd = 0, 0, 0
+            self._pid_pk, self._pid_pi, self._pid_pd = (
+                0.04,
+                0.3,
+                0.05,
+            )  # TODO: make these parameters again
             self._pid_controller = PID(
                 self._pid_pk, self._pid_pi, self._pid_pd, setpoint=0
             )  # The goal for the PID controller is to make the rover's angle to the destination 0
@@ -199,14 +205,11 @@ class NavigatorNode(Node):
         # Plot path to goal
 
         # Before we start navigating, make sure the rover is still
-        self._wheels_publisher.publish(
-            WheelsMessage(left_wheels=0, right_wheels=0)
-        )
-        self._last_rover_wheels_message = WheelsMessage(
-            left_wheels=0, right_wheels=0
-        )
+        wheel_speeds_msg = WheelsMessage(left_wheels=127, right_wheels=127)
+        self._wheels_publisher.publish(wheel_speeds_msg)
+        self._last_rover_wheels_message = wheel_speeds_msg
         # Start navigating
-        self._navigator_callback_timer = self.create_timer(0.5, self.navigator)
+        self._navigator_callback_timer = self.create_timer(0.2, self.navigator)
         llogger.info("Starting navigation!")
 
     def navigator(self):
@@ -230,15 +233,20 @@ class NavigatorNode(Node):
 
         # Ensure rover coordinates are updating
 
+        """
+        0 = max reverse wheels
+        126 = none
+        255 = max speed forward
+        """
         # Send wheel speeds depending on our current mode
         wheel_speeds_msg = WheelsMessage(left_wheels=0, right_wheels=0)
+        dest_coord = self._coord_queue[0]
         match self._nav_mode:
             case NavigationMode.STANDBY:
                 llogger.info("The rover is just a chill guy")
-                wheel_speeds_msg.left_wheels = 0
-                wheel_speeds_msg.right_wheels = 0
+                wheel_speeds_msg.left_wheels = 127
+                wheel_speeds_msg.right_wheels = 127
             case NavigationMode.NAV_TO_GNSS:
-                dest_coord = self._coord_queue[0]
                 llogger.info(
                     f"Rover is navigating to GNSS:\n- {dest_coord.latitude, dest_coord.longitude}"
                 )
@@ -261,54 +269,59 @@ class NavigatorNode(Node):
                     wheel_speeds_msg = self.wheel_speeds_for_nav_to_gnss(
                         dest_coord
                     )
+            case NavigationMode.ROTATE_TO_GNSS:
+                llogger.info(
+                    f"Rover is rotating to GNSS:\n- {dest_coord.latitude, dest_coord.longitude}"
+                )
+
+                # If we're in line with the destination,
+                # switch navigation mode to move to the GNSS coordinate
+                # otherwise keep rotating.
+                angle_error = get_angle_to_dest(
+                    self._last_rover_coord, dest_coord, self._last_rover_imu
+                )
+                if angle_error < 10 and angle_error > -10:
+                    self._nav_mode = NavigationMode.NAV_TO_GNSS
+                else:
+                    wheel_speeds_msg.left_wheels = 116
+                    wheel_speeds_msg.right_wheels = 136
 
         llogger.debug(
             f"Sending the following wheel speeds:\n {wheel_speeds_msg}"
         )
         self._wheels_publisher.publish(wheel_speeds_msg)
+        self._last_rover_wheels_message = wheel_speeds_msg
 
-    def wheel_speeds_for_nav_to_gnss(self, dest_coord):
-        """Given a pid controller and destination coordinates, give the wheel speeds needed reach the destination."""
-
-        # Utility functions
-        def get_angle_to_dest() -> float:
-            """Calculate the angle from the robot to the destination."""
-            # TODO: Double check trigonometry
-            unnormalized_angle = math.atan2(
-                dest_coord.latitude - self._last_rover_coord.position.latitude,
-                dest_coord.longitude
-                - self._last_rover_coord.position.longitude,
-            )
-            # Normalize the angle to be between -pi and pi
-            normalized_angle = (unnormalized_angle + math.pi) % (
-                2 * math.pi
-            ) - math.pi
-            return normalized_angle
+    def wheel_speeds_for_nav_to_gnss(self, dest_coord: GeoPoint):
+        """Given a destination coordinate, give the wheel speeds needed reach the destination."""
 
         # Calculate the current PID value which based off of the rover's current angle to the destination.
-        angle_to_dest = get_angle_to_dest()
-        llogger.debug(f"Angle to dest is {angle_to_dest}")
-        control = self._pid_controller(angle_to_dest)
-        llogger.debug(f"Control value from PID is: {control}")
-        if control is None:
-            llogger.error("PID could not calculate correction value!")
-            return
+        angle_error = get_angle_to_dest(
+            self._last_rover_coord, dest_coord, self._last_rover_imu
+        )
+        llogger.debug(f"Angle to dest is {angle_error}")
 
-        # Correct the last send rover wheel speeds with the PID control value
-        # NOTE: This feels wrong
+        # If angle error is high, adjust the wheel speeds
         wheel_speeds_msg = WheelsMessage()
-        wheel_speeds_msg.right_wheels = int(
-            self._last_rover_wheels_message.left_wheels + control
-        )
-        wheel_speeds_msg.left_wheels = int(
-            self._last_rover_wheels_message.right_wheels - control
-        )
+        if angle_error > 10 or angle_error < -10:
+            control = self._pid_controller(angle_error)
+            llogger.debug(f"Control value from PID is: {control}")
+            if control is None:
+                llogger.error("PID could not calculate correction value!")
+                return
 
-        # Make sure the wheel speeds are moving a little bit
-        if wheel_speeds_msg.left_wheels == 0:
-            wheel_speeds_msg.left_wheels = 20
-        if wheel_speeds_msg.right_wheels == 0:
-            wheel_speeds_msg.right_wheels = 20
+            wheel_speeds_msg.right_wheels = int(127 - control)
+            wheel_speeds_msg.left_wheels = int(127 + control)
+            # Make sure the wheel speeds are between 0-255
+            wheel_speeds_msg.left_wheels = max(
+                100, min(wheel_speeds_msg.left_wheels, 140)
+            )
+            wheel_speeds_msg.right_wheels = max(
+                100, min(wheel_speeds_msg.right_wheels, 140)
+            )
+        else:  # Just go forward bro
+            wheel_speeds_msg.right_wheels = 180
+            wheel_speeds_msg.left_wheels = 180
 
         return wheel_speeds_msg
 
