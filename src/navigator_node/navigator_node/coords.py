@@ -12,7 +12,7 @@ import sys
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
 from geometry_msgs.msg import Point, PoseStamped
 from loguru import logger as llogger
-from sensor_msgs.msg import Imu
+from custom_interfaces.msg import ImuMessage
 from tf_transformations import euler_from_quaternion
 
 
@@ -20,7 +20,7 @@ from tf_transformations import euler_from_quaternion
 def get_angle_to_dest(
     current_coord: GeoPointStamped,
     dest_coord: GeoPoint,
-    current_imu: Imu,
+    current_imu: ImuMessage,
 ) -> float:
     """Calculate the angle from the robot to the destination."""
     # Convert latitude and longitude to radians
@@ -37,7 +37,8 @@ def get_angle_to_dest(
     long_diff = dest_long - curr_long
 
     # SHOULD Y AND X BE SWITCHED?
-    y = math.sin(long_diff) * math.cos(dest_lat)
+    #y = math.sin(long_diff) * math.cos(dest_lat)
+    y = math.sin(long_diff) * math.cos(curr_lat)
     x = math.cos(curr_lat) * math.sin(dest_lat) - math.sin(curr_lat) * math.cos(
         dest_lat
     ) * math.cos(long_diff)
@@ -46,21 +47,15 @@ def get_angle_to_dest(
     target_bearing = math.degrees(target_bearing) % 360  # convert to degrees
 
     # Get the rover's current angle
-    # TODO: Change this to use compass information instead of IMU
-    _, _, yaw = euler_from_quaternion(
-        [
-            current_imu.orientation.x,
-            current_imu.orientation.y,
-            current_imu.orientation.z,
-            current_imu.orientation.w,
-        ]
-    )
-
-    rover_bearing = math.degrees(yaw) % 360
+    # NOTE: This assumes that the compass is level at all times
+    bearing_deg = math.degrees(math.atan2(current_imu.compass.y, current_imu.compass.x))
+    rover_bearing = (bearing_deg + 360) % 360
+    
     llogger.debug(f"Rover Bearing: {rover_bearing}")
 
     # Find the difference between bearing to destination and current orientation
-    error = (rover_bearing + target_bearing) % 360  # Wrap between -180 and 180
+    #error = (rover_bearing + target_bearing) % 360  # Wrap between -180 and 180
+    error = (target_bearing - rover_bearing) % 360
     if error > 180:
         error -= 360
     # do we need to add 360 somewhere?
@@ -71,7 +66,7 @@ def get_angle_to_dest(
 def get_angle_to_dest_original(
     current_coord: GeoPointStamped,
     dest_coord: GeoPoint,
-    current_imu: Imu,
+    current_imu: ImuMessage,
 ) -> float:
     """Calculate the angle from the robot to the destination."""
     # Convert latitude and longitude to radians
