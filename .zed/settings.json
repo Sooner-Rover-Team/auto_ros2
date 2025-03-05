@@ -1,0 +1,71 @@
+{
+  "format_on_save": "on",
+  "languages": {
+    "Python": {
+      "language_servers": ["ruff", "basedpyright", "!pyright", "!prettier"],
+      "format_on_save": "on",
+      "formatter": [
+        {
+          "code_actions": {
+            "source.organizeImports.ruff": true,
+            "source.fixAll.ruff": true
+          }
+        },
+        {
+          "language_server": {
+            "name": "ruff"
+          }
+        }
+      ]
+    }
+  },
+
+  "lsp": {
+    "ruff": {
+      "initialization_options": {
+        "settings": {
+          // Ruff server settings goes here
+          "lineLength": 80,
+          "lint": {
+            "extendSelect": ["I"]
+          }
+        }
+      }
+    },
+
+    "basedpyright": {
+      "settings": {
+        "python": {
+          "pythonPath": ".venv/bin/python"
+        },
+        "basedpyright.analysis": {
+          "diagnosticMode": "workspace",
+          "inlayHints": {
+            "callArgumentNames": false
+          }
+        }
+      }
+    }
+  },
+
+  "diagnostics": {
+    "inline": {
+      "enabled": true
+    }
+  },
+
+  "inlay_hints": {
+    "enabled": true,
+    "show_type_hints": true,
+    "show_parameter_hints": true,
+    "show_other_hints": true,
+    "show_background": true
+  },
+  "file_scan_exclusions": [
+    "install/**",
+    "build/**",
+    ".venv/**",
+    ".cargo/**",
+    "log/**"
+  ]
+}

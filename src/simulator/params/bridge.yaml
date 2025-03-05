@@ -1,0 +1,60 @@
+# imu (accel/compass/gyro)
+- ros_topic_name: "/sim/imu"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# gps
+- ros_topic_name: "/sim/gps"
+  gz_topic_name: "/navsat"
+  ros_type_name: "gps_msgs/msg/GPSFix"
+  gz_type_name: "gz.msgs.NavSat"
+  direction: GZ_TO_ROS
+
+# wheels
+- ros_topic_name: "/sim/left_front_wheel/vel"
+  gz_topic_name: "/left_front_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/sim/left_middle_wheel/vel"
+  gz_topic_name: "/left_middle_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/sim/left_back_wheel/vel"
+  gz_topic_name: "/left_back_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/sim/right_front_wheel/vel"
+  gz_topic_name: "/right_front_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/sim/right_middle_wheel/vel"
+  gz_topic_name: "/right_middle_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/sim/right_back_wheel/vel"
+  gz_topic_name: "/right_back_wheel/cmd_vel"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+# camera
+#
+# TODO: use the `ros_gz_image` tool instead?
+# couldn't get that working, though...
+- ros_topic_name: "/sensors/mono_image"
+  gz_topic_name: "/sensors/mono_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS

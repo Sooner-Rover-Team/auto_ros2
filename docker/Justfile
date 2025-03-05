@@ -1,0 +1,13 @@
+# Some basic commands to help build the simulator image.
+
+set shell := ["fish", "-c"]
+ros2_workspace_dir := justfile_directory()
+
+build:
+    - sudo docker stop soro
+    - sudo docker rm soro
+    sudo docker build . -t ros2-soro --network host
+
+run:
+    AUTO_ROS2_REPO_LOCATION=(realpath {{ros2_workspace_dir}}/..) \
+        sudo docker compose up -d

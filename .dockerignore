@@ -1,0 +1,15 @@
+# the following is stuff that won't be used by docker!
+
+# python
+**/.venv
+src/**/**.egg-info
+src/**/uv.lock
+**/__pycache__
+
+# ros 2 
+build/
+install/
+logs/
+
+# rust
+target/

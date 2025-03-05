@@ -1,0 +1,20 @@
+services:
+  soro:
+    image: ros2-soro
+    container_name: soro
+    ports:
+      - "5901:5901"
+      - "5801:5801"
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+
+    # mount the `auto_ros2` repo from your computer
+    volumes:
+      - type: bind
+        source: ${AUTO_ROS2_REPO_LOCATION}
+        target: /home/soro/auto_ros2
+        read_only: false
+        bind:
+          propagation: rprivate
+          selinux: Z

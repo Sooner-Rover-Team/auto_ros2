@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" ?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>navigator_node</name>
@@ -10,6 +10,9 @@
   <maintainer email="bford@axmilius.com">Brendan Ford</maintainer>
 
   <license>TODO</license>
+
+  <!-- dependencies -->
+  <depend>tf_transformations</depend>
 
   <!-- note: these are optional and only for testing -->
   <test_depend>ament_pep257</test_depend>

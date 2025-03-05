@@ -3,12 +3,9 @@ name = "log_node"
 version = "0.1.0"
 description = "Handles logging."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dynamic = ["maintainers", "license", "scripts"]
-dependencies = [
-    "loguru>=0.7.3",
-    "numpy>=2.2.1",
-]
+dependencies = ["loguru>=0.7.3", "numpy>=1.26.4"]
 
 [build-system]
 requires = ["setuptools >= 61.0"]

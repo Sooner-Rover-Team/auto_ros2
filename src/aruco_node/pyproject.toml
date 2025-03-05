@@ -3,9 +3,11 @@ name = "aruco_node"
 version = "0.1.0"
 description = "Handles tracking aruco tags."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dynamic = ["maintainers", "license", "scripts"]
-dependencies = []
+dependencies = [
+    "numpy==1.26.4",
+]
 
 [build-system]
 requires = ["setuptools >= 61.0"]

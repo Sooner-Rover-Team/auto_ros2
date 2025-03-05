@@ -1,10 +1,12 @@
-import cv2
-import cv2.aruco as aruco
 import argparse
 import dataclasses
+from collections.abc import Sequence
+
+import cv2
+import cv2.aruco as aruco
 from loguru import logger
-from typing import Sequence
-from aruco_node.aruco_dict_map import aruco_dict_map
+
+from ..aruco_node.aruco_dict_map import aruco_dict_map
 
 
 @dataclasses.dataclass
@@ -17,50 +19,55 @@ class Arguments:
     output_file: str
     aruco_dict: aruco.Dictionary
 
-    def __init__(self, args):
-        self.num_squares_x = args.num_squares_x
-        self.num_squares_y = args.num_squares_y
-        self.square_length = args.square_length
-        self.marker_length = args.marker_length
-        self.camera_index = args.camera_index
-        self.output_file = args.output_file
-        self.aruco_dict = aruco.getPredefinedDictionary(aruco_dict_map[args.aruco_dict])
+    def __init__(self, args: argparse.Namespace):
+        self.num_squares_x = args.num_squares_x  # pyright: ignore[reportAny]
+        self.num_squares_y = args.num_squares_y  # pyright: ignore[reportAny]
+        self.square_length = args.square_length  # pyright: ignore[reportAny]
+        self.marker_length = args.marker_length  # pyright: ignore[reportAny]
+        self.camera_index = args.camera_index  # pyright: ignore[reportAny]
+        self.output_file = args.output_file  # pyright: ignore[reportAny]
+        self.aruco_dict = aruco.getPredefinedDictionary(
+            aruco_dict_map[args.aruco_dict]  # pyright: ignore[reportAny]
+        )
 
 
 def add_arguments():
     """Parse the commandline arguements for the camera calibration script."""
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    _ = parser.add_argument(
         "--num_squares_x",
         type=int,
         default=11,
         help="Number of columns in the aruco checkerboard",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--num_squares_y",
         type=int,
         default=8,
         help="Number of rows in the aruco checkerboard",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--square_length",
         type=float,
         default=0.02,
         help="Length of the checkerboard square that the marker lies in",
     )
-    parser.add_argument(
-        "--marker_length", type=float, default=0.015, help="Length of the marker itself"
+    _ = parser.add_argument(
+        "--marker_length",
+        type=float,
+        default=0.015,
+        help="Length of the marker itself",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--camera_index", type=int, default=0, help="Index of the camera to use"
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--output_file",
         type=str,
         default="cam.yml",
         help="Output file to save the camera calibration info",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--aruco_dict",
         type=str,
         choices=[
@@ -142,7 +149,7 @@ def main():
             )
 
         # Preview the image
-        cv2.putText(
+        _ = cv2.putText(
             preview_frame,
             "Press 'c' to add current frame. 'q' to finish and calibrate",
             (10, 20),
@@ -162,13 +169,13 @@ def main():
         if (
             key == ord("c")
             and charuco_corners is not None
-            and marker_corners is not None
+            and len(marker_corners) > 0
             and len(charuco_corners) > 3
         ):
             logger.debug(f"Markers found: {len(marker_ids)}")
             obj_points, img_points = charuco_board.matchImagePoints(
                 charuco_corners, charuco_ids, obj_points=None, img_points=None
-            )
+            )  # pyright: ignore[reportCallIssue]
 
             if obj_points is None or img_points is None:
                 logger.info("Point matching failed, try again")
@@ -196,9 +203,9 @@ def main():
         exit(0)
 
     # Calibrate the camera using ChAruco
-    (rep_error, camera_mat, dist_coeffs, rvecs, tvecs) = cv2.calibrateCamera(
+    (rep_error, camera_mat, dist_coeffs, _rvecs, _tvecs) = cv2.calibrateCamera(
         captured_object_points, captured_image_points, image_size
-    )
+    )  # pyright: ignore[reportCallIssue]
 
     # Save the camera parameters
     try:
@@ -215,14 +222,11 @@ def main():
         # Release camera and destroy opencv windows
         cap.release()
         cv2.destroyAllWindows()
+
+        logger.info(f"Rep Error: {rep_error}")
+        logger.info(f"Calibration saved to {args.output_file}")
+
         exit(0)
-
-    logger.info(f"Rep Error: {rep_error}")
-    logger.info(f"Calibration saved to {args.output_file}")
-
-    # Release camera and destroy opencv windows
-    cap.release()
-    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

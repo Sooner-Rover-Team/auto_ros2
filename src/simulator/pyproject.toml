@@ -1,0 +1,14 @@
+[project]
+name = "simulator"
+version = "0.1.0"
+description = "Provides simulation (less stressful testing)."
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["maintainers", "license", "scripts"]
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = ["colcon-common-extensions>=0.3.0", "pytest>=8.3.4", "ruff>=0.8.4"]

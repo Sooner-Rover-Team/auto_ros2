@@ -1,7 +1,7 @@
 from cv2 import aruco
 
 # A map of aruco dictionary strings to opencv.aruco enum values
-aruco_dict_map = {
+aruco_dict_map: dict[str, int] = {
     "4x4_50": aruco.DICT_4X4_50,
     "4x4_100": aruco.DICT_4X4_100,
     "4x4_250": aruco.DICT_4X4_250,
@@ -17,5 +17,5 @@ aruco_dict_map = {
     "7x7_50": aruco.DICT_7X7_50,
     "7x7_100": aruco.DICT_7X7_100,
     "7x7_250": aruco.DICT_7X7_250,
-    "7x7_1000": aruco.DICT_7X7_1000
+    "7x7_1000": aruco.DICT_7X7_1000,
 }

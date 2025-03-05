@@ -1,12 +1,16 @@
-import rclpy
-from rclpy.node import Node
-from rcl_interfaces.msg import ParameterDescriptor
+from dataclasses import dataclass
+
 import cv2 as cv
+import rclpy
+from cv_bridge import CvBridge
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.node import Node, Publisher
 
 # Used to convert OpenCV Mat type to ROS Image type
 # NOTE: This may not be the most effective, we could turn the image into an JPEG string or even define a custom ROS data type.
+from rclpy.timer import Timer
 from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from typing_extensions import override
 
 
 # *PARAMETERS*
@@ -14,7 +18,18 @@ from cv_bridge import CvBridge
 # fps: DEFAULT = 30
 # topic name: DEFAULT = 'image'
 # run node with parameters: ros2 run aruco_node aruco_node --ros-args -p fps:=30
+@dataclass(kw_only=True)
 class ImageCaptureNode(Node):
+    cam_fps: int
+    cam_idx: int
+    cap: cv.VideoCapture
+    bridge: CvBridge
+
+    timer: Timer
+
+    publisher_: Publisher
+    """TODO: document this"""
+
     def __init__(self):
         super().__init__("image_capture")
         # Declare the parameters for the node
@@ -46,7 +61,7 @@ class ImageCaptureNode(Node):
         # Create a camera capture device given a camera index
         self.cap = cv.VideoCapture(self.cam_idx)
         if not self.cap.isOpened():
-            self.get_logger().info("Could not open camera")
+            _ = self.get_logger().info("Could not open camera")
             exit()
 
         # Define the image publisher
@@ -56,11 +71,15 @@ class ImageCaptureNode(Node):
         # Capture and publish frames at a certain fps
         self.timer = self.create_timer(1.0 / self.cam_fps, self.publish_image)
 
+    @override
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     def publish_image(self):
         # Capture frame from camera
         ret, frame = self.cap.read()
         if not ret:
-            self.get_logger().error("Failed to capture image")
+            _ = self.get_logger().error("Failed to capture image")
             return
 
         # Convert cv2 Mat to ROS Image message
@@ -68,15 +87,15 @@ class ImageCaptureNode(Node):
 
         # Publish image
         self.publisher_.publish(ros_image)
-        self.get_logger().info("Published an image")
+        _ = self.get_logger().info("Published an image")
 
     def close_video_capture(self):
         if self.cap:
             self.cap.release()
-            self.get_logger().info(f"Closed video capture device")
+            _ = self.get_logger().info("Closed video capture device")
 
 
-def main(args=None):
+def main(args: list[str] | None = None):
     rclpy.init(args=args)
 
     image_capture_node = ImageCaptureNode()

@@ -1,12 +1,14 @@
 //! Logic is encapsulated here to avoid clutter in the `main` module.
 
 use ros2_client::{
-    log::LogLevel, ros2::QosPolicyBuilder, rosout, Context, MessageTypeName, Name, Node, NodeName,
-    NodeOptions,
+    log::LogLevel, rosout, Context, MessageTypeName, Name, Node, NodeName, NodeOptions,
 };
 use soro_gps::Gps;
 
-use crate::{msg::sensors::GpsMessage, SensorSetup};
+use crate::{
+    msg::sensors::{GpsMessage, ImuMessage},
+    SensorSetup,
+};
 
 /// Creates the `sensors_node`.
 #[tracing::instrument(skip(ctx))]
@@ -25,13 +27,7 @@ pub fn create_node(ctx: &Context) -> Node {
 /// for competition.
 #[tracing::instrument]
 pub fn qos() -> ros2_client::ros2::QosPolicies {
-    QosPolicyBuilder::new()
-        .history(ros2_client::ros2::policy::History::KeepLast { depth: 10 })
-        .reliability(ros2_client::ros2::policy::Reliability::Reliable {
-            max_blocking_time: ros2_client::ros2::Duration::from_millis(100),
-        })
-        .durability(ros2_client::ros2::policy::Durability::TransientLocal)
-        .build()
+    ros2_client::DEFAULT_SUBSCRIPTION_QOS.clone()
 }
 
 /// Starts 'spinning' the given `Node`.
@@ -75,7 +71,7 @@ pub async fn spawn_sensor_publisher_tasks(
         let gps_topic = sensors_node
             .create_topic(
                 &Name::new("/sensors", "gps").expect("valid topic name"),
-                MessageTypeName::new("interfaces", "GpsMessage"),
+                MessageTypeName::new("custom_interfaces", "GpsMessage"),
                 &qos(),
             )
             .expect("create gps topic");
@@ -89,31 +85,60 @@ pub async fn spawn_sensor_publisher_tasks(
         //
         // note: we use `0` for the port we bind on since it doesn't matter.
         // we're just sending stuff to people and assuming they get it.
-        let gps = Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 0_u16)
+        let gps = Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 54555_u16)
             .await
             .expect("gps creation");
 
         tokio::task::spawn(sensor_tasks::gps_task(gps, gps_pub));
         rosout!(sensors_node, LogLevel::Debug, "made gps task!");
     }
+
+    // spawn imu task
+    {
+        // imu_task
+        let imu_topic = sensors_node
+            .create_topic(
+                &Name::new("/sensors", "imu").expect("valid topic name"),
+                MessageTypeName::new("custom_interfaces", "ImuMessage"),
+                &qos(),
+            )
+            .expect("create imu topic");
+
+        let imu_pub = sensors_node
+            .create_publisher::<ImuMessage>(&imu_topic, Some(qos()))
+            .expect("create imu publisher");
+
+        tokio::task::spawn(sensor_tasks::imu_task(imu_pub));
+        rosout!(sensors_node, LogLevel::Debug, "made gps task!");
+    }
 }
 
 /// A module made of tasks for each sensor.
 mod sensor_tasks {
-    use std::time::Duration;
+    use std::{net::Ipv4Addr, time::Duration};
 
+    use feedback::parse::Message;
     use ros2_client::Publisher;
     use soro_gps::Gps;
+    use tokio::net::UdpSocket;
 
-    use crate::msg::sensors::GpsMessage;
+    use crate::{
+        msg::{
+            builtins::Vector3,
+            sensors::{GpsMessage, ImuMessage},
+        },
+        SensorSetup,
+    };
 
     /// Publishes `GpsMessage`s when the GPS provides an update.
     pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<GpsMessage>) {
         // every 1/20th of a second, check for any updates.
         //
         // if the data is different, we'll publish it in a message.
+        tracing::debug!("Trying to get GPS data from sensors node. If a freeze occurs here, we didn't see any GPS data.");
         loop {
             // check for gps data
+            tracing::debug!("Trying to get GPS data from sensors node. If a freeze occurs here, we didn't see any GPS data.");
             let gps_data = match gps.get().await {
                 Ok(info) => info,
                 Err(e) => {
@@ -131,7 +156,7 @@ mod sensor_tasks {
                 error_mm: 0.0,
                 time_of_week: gps_data.tow.0,
             };
-            tracing::debug!("Attempting to publish GPS message: {gps_message:?}");
+            tracing::debug!("Publishing GPS message: {gps_message:?}");
 
             // if we got all the values, publish them!
             _ = gps_pub
@@ -152,6 +177,64 @@ mod sensor_tasks {
 
         async fn sleep_gps() {
             tokio::time::sleep(Duration::from_secs(1) / 20).await;
+        }
+    }
+
+    pub async fn imu_task(imu_pub: Publisher<ImuMessage>) {
+        let sock: UdpSocket =
+            UdpSocket::bind((Ipv4Addr::UNSPECIFIED, SensorSetup::default().imu_port))
+                .await
+                .expect("imu sock should connect");
+        let mut buf: Vec<u8> = Vec::with_capacity(128);
+
+        // grab data and parse
+        loop {
+            buf.clear();
+            let recv_res = sock.recv_from(&mut buf).await;
+
+            // make sure it was read alright
+            let Ok((_bytes_read, _from_addr)) = recv_res else {
+                tracing::warn!("failed to read");
+                continue;
+            };
+
+            // parse into a struct
+            let Ok(parsed_msg) = feedback::parse::parse(&buf) else {
+                tracing::warn!("failed to parse");
+                continue;
+            };
+
+            // make sure it's the right kind
+            let Message::Imu(imu_raw) = parsed_msg else {
+                tracing::warn!("wrong msg ty");
+                continue;
+            };
+
+            // make a ros 2 message from that parsed info
+            let msg = ImuMessage {
+                accel: Vector3 {
+                    x: imu_raw.accel_x,
+                    y: imu_raw.accel_y,
+                    z: imu_raw.accel_z,
+                },
+                gyro: Vector3 {
+                    x: imu_raw.gyro_x,
+                    y: imu_raw.gyro_y,
+                    z: imu_raw.gyro_z,
+                },
+                compass: Vector3 {
+                    x: imu_raw.compass_x,
+                    y: imu_raw.compass_y,
+                    z: imu_raw.compass_z,
+                },
+                temp_c: imu_raw.temp_c,
+            };
+
+            // publish it
+            _ = imu_pub
+                .async_publish(msg)
+                .await
+                .inspect_err(|e| tracing::error!("failed to publish imu msg. err: {e}"));
         }
     }
 }
@@ -175,7 +258,7 @@ mod tests {
         let topic = node
             .create_topic(
                 &Name::new("/test", "gps_task_doesnt_panic_topic").unwrap(),
-                MessageTypeName::new("interfaces", "GpsMessage"),
+                MessageTypeName::new("custom_interfaces", "GpsMessage"),
                 &super::qos(),
             )
             .unwrap();

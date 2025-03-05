@@ -12,6 +12,7 @@ target/
 **/log/
 **/COLCON_IGNORE
 **/AMENT_IGNORE
+**/.cargo/config.toml
 
 # misc files
 .ropeproject

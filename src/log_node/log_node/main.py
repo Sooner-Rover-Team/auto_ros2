@@ -1,16 +1,13 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.subscription import Subscription
-
-from rpyutils.add_dll_directories import sys
-from rcl_interfaces.msg import Log
-
-from typing import List
 from dataclasses import dataclass
 
+import rclpy
 from loguru import logger
-
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rcl_interfaces.msg import Log
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.subscription import Subscription
+from rpyutils.add_dll_directories import sys
+from typing_extensions import override
 
 ## how long we'll keep the data (DDS).
 QUEUE_SIZE: int = 10
@@ -68,11 +65,12 @@ class LogNode(Node):
             case other:
                 logger.trace(f"log level was a weird value: {other}. msg: {msg}")
 
+    @override
     def __hash__(self) -> int:
         return super().__hash__()
 
 
-def main(args: List[str] | None = None):
+def main(args: list[str] | None = None):
     """
     Initializes the Node using `rcl`.
     """
@@ -97,14 +95,14 @@ def adjust_logger():
 
     # add new format
     fmt = "<light-black>{time:hh:mm:ss A}</light-black> <level>[{level}] {message}</level>"
-    logger.add(sys.stdout, format=fmt)
+    _ = logger.add(sys.stdout, format=fmt)
 
     # make colors closer to `tracing` :3
-    logger.level("DEBUG", color="<light-black>")
-    logger.level("INFO", color="<green>")
-    logger.level("WARNING", color="<yellow>")
-    logger.level("ERROR", color="<red>")
-    logger.level("CRITICAL", color="<RED><black>")
+    _ = logger.level("DEBUG", color="<light-black>")
+    _ = logger.level("INFO", color="<green>")
+    _ = logger.level("WARNING", color="<yellow>")
+    _ = logger.level("ERROR", color="<red>")
+    _ = logger.level("CRITICAL", color="<RED><black>")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,19 @@
+<?xml version="1.0" ?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>simulator</name>
+  <version>0.0.0</version>
+  <description>TODO</description>
+
+  <maintainer email="contact@barretts.club">Barrett Ray</maintainer>
+  <maintainer email="tyler73750@gmail.com">Tyler Roman</maintainer>
+
+  <license>TODO</license>
+
+  <depend>ros_gz_bridge</depend>
+  <depend>ros_gz_sim</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

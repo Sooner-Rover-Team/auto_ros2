@@ -26,7 +26,11 @@ async fn main() {
 
     // create the autonomous node
     let mut sensors_node = logic::create_node(&ctx);
-    rosout!(sensors_node, LogLevel::Info, "sensors node is online!");
+    rosout!(
+        sensors_node,
+        LogLevel::Info,
+        "sensors node is now starting!"
+    );
 
     // make the node do stuff
     logic::spin(&mut sensors_node);
@@ -34,7 +38,13 @@ async fn main() {
     // start all our topics + publishers
     //
     // TODO: maybe fill `sensor_setup` using params?
+    let logging_handle = sensors_node.logging_handle();
     logic::spawn_sensor_publisher_tasks(SensorSetup::default(), sensors_node).await;
+    rosout!(
+        logging_handle,
+        LogLevel::Info,
+        "spawned all sensor info publishers"
+    );
 
     loop {
         tokio::time::sleep(Duration::from_millis(20_000)).await;
@@ -75,15 +85,15 @@ impl Default for SensorSetup {
 
         Self {
             gps_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 222)),
-            gps_port: 55556, // FIXME: this should be documented! check first though.
+            gps_port: 54555, // FIXME: this should be documented! check first though.
 
             depth_camera_path: Utf8PathBuf::new(), // TODO: this is pretty bad
             mono_camera_path: Utf8PathBuf::new(),  // and this too
 
-            battery_monitor_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            battery_monitor_ip: ebox_microcontroller_ip,
             battery_monitor_port: 5007,
 
-            imu_ip: ebox_microcontroller_ip, // FIXME: assuming it's just the ebox microcontroller
+            imu_ip: ebox_microcontroller_ip,
             imu_port: 5006,
         }
     }
