@@ -119,7 +119,9 @@ class NavigatorNode(Node):
     _last_known_imu_data: ImuMessage | None = None
 
     _curr_marker_transform: PoseStamped | None = None
-    _coordinate_path_queue: list[GeoPoint] = dataclasses.field(default_factory=list)
+    _coordinate_path_queue: list[GeoPoint] = dataclasses.field(
+        default_factory=list
+    )
     _times_marker_seen: int = 0
 
     """
@@ -300,7 +302,9 @@ class NavigatorNode(Node):
         return super().__hash__()
 
     # Function to send lights request given a LightsRequest class instance
-    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:
+    def send_lights_request(
+        self, lights_info: LightsRequest
+    ) -> LightsResponse | None:
         """
         Send a request to the lights service to turn the lights red.
         """
@@ -359,7 +363,9 @@ class NavigatorNode(Node):
             if not self.calculating_aruco_coord:
                 # grab the coordinate we want to head to
                 target_coord: GeoPoint = self._coordinate_path_queue[0]
-                llogger.info(f"Step 1: go to coordinate! target: {target_coord}")
+                llogger.info(
+                    f"Step 1: go to coordinate! target: {target_coord}"
+                )
 
                 while True:
                     # find the distance to it
@@ -435,17 +441,23 @@ class NavigatorNode(Node):
         This is a simple implementation that uses a PID controller to navigate to the coordinate, based
         on the rover's current position and the destination coordinate.
         """
-        llogger.info(f"Async task is up! Going to coordinate at {dest_coord}...")
+        llogger.info(
+            f"Async task is up! Going to coordinate at {dest_coord}..."
+        )
 
         # Make sure that we are receiving rover imu and coordinates
         # TODO: Implement a version of this function that actually uses the IMU compass data. For now, we're just using the GPS data
         while self._last_known_rover_coord is None:
-            _ = self.get_logger().warn("no GPS data yet; waiting to navigate...")
+            _ = self.get_logger().warn(
+                "no GPS data yet; waiting to navigate..."
+            )
             await asyncio.sleep(0.25)
 
         # block on getting magnetometer info from IMU
         while self._last_known_imu_data is None:
-            _ = self.get_logger().warn("no IMU data yet. waiting to navigate...")
+            _ = self.get_logger().warn(
+                "no IMU data yet. waiting to navigate..."
+            )
             await asyncio.sleep(0.25)
 
         # grab the x, y, z compass data
@@ -479,12 +491,18 @@ class NavigatorNode(Node):
                 self._last_known_rover_coord.position, self.nav_parameters.coord
             )
             if dist_to_target_coord_m < MIN_GPS_DISTANCE:
-                _ = self.get_logger().info("at the coordinate! stopping navigation...")
+                _ = self.get_logger().info(
+                    "at the coordinate! stopping navigation..."
+                )
                 break
 
-            angle_to_dest = get_angle_to_dest(dest_coord, self._last_known_rover_coord)
+            angle_to_dest = get_angle_to_dest(
+                dest_coord, self._last_known_rover_coord.position
+            )
             pid_value: float | None = pid(angle_to_dest)
-            llogger.debug(f"angle to target: {angle_to_dest}, pid value: {pid_value}.")
+            llogger.debug(
+                f"angle to target: {angle_to_dest}, pid value: {pid_value}."
+            )
 
             if pid_value is None:
                 _ = self.get_logger().error(
@@ -510,8 +528,12 @@ class NavigatorNode(Node):
             # - make sure they aren't above max or min
             #
             # max speed (forward) = 255, max speed (reverse) = 0, stopped = 126
-            wheel_speeds.left_wheels = max(0, min(255, wheel_speeds.left_wheels))
-            wheel_speeds.right_wheels = max(0, min(255, wheel_speeds.right_wheels))
+            wheel_speeds.left_wheels = max(
+                0, min(255, wheel_speeds.left_wheels)
+            )
+            wheel_speeds.right_wheels = max(
+                0, min(255, wheel_speeds.right_wheels)
+            )
             llogger.debug(f"filtered speeds: {wheel_speeds}.")
 
             # Publish the wheel speeds
@@ -548,7 +570,9 @@ class NavigatorNode(Node):
         pass
 
     # Note: This is good, but idfk how to implement this with the structure that has already had a lot of work put into it. For the moment, ignoring this
-    def _near_coordinate(self, target_coordinate: GeoPoint, distance_m: float) -> bool:
+    def _near_coordinate(
+        self, target_coordinate: GeoPoint, distance_m: float
+    ) -> bool:
         """
         Checks if the Rover is near a target coordinate, within the given
         distance (in meters).
@@ -588,7 +612,9 @@ class NavigatorNode(Node):
         time_since_sensor_data: int = sensor_data_timestamp.nanoseconds  # pyright: ignore[reportAny]
 
         # check if it's timed out
-        timed_out: bool = (current_time - time_since_sensor_data) > SENSOR_TIMEOUT_NS
+        timed_out: bool = (
+            current_time - time_since_sensor_data
+        ) > SENSOR_TIMEOUT_NS
 
         # if we've timed out on some data, print that out
         if timed_out:
@@ -715,7 +741,9 @@ def main(args: list[str] | None = None):
     # spin the ros 2 node and run our logic... at the same time!
     #
     # for more info, see: https://github.com/m2-farzan/ros2-asyncio
-    future = asyncio.wait([ros_spin(navigator_node), navigator_node.navigator()])
+    future = asyncio.wait(
+        [ros_spin(navigator_node), navigator_node.navigator()]
+    )
     _ = asyncio.get_event_loop().run_until_complete(future)
 
     # destroy the Node explicitly
@@ -736,4 +764,6 @@ async def ros_spin(node: Node):
         rclpy.spin_once(node, timeout_sec=0)
         await asyncio.sleep(1e-4)
 
-    llogger.error("`rclpy.ok()` no longer True. the node is no longer spinning.")
+    llogger.error(
+        "`rclpy.ok()` no longer True. the node is no longer spinning."
+    )
