@@ -51,16 +51,29 @@ def get_distance_to_marker(marker: PoseStamped) -> float:
     return distance_to_marker
 
 
-def get_angle_to_dest(dest_coord: GeoPoint, current_coord: GeoPointStamped) -> float:
-    """Calculate the angle from the robot to the destination."""
+def calc_angle_to_target(
+    dest_coord: GeoPoint, current_coord: GeoPoint
+) -> float:
+    """
+    Calculate the angle from the Rover to the destination.
+
+    The angle will ALWAYS be clamped to [-180.0, 180.0] degrees. Larger values
+    will never result.
+
+    Something directly behind the Rover will result in a value of 180.0 degrees.
+    """
     # TODO: Double check trigonometry
+    # Longitude is x, latitude is y
     unnormalized_angle = math.atan2(
-        dest_coord.latitude - current_coord.position.latitude,
-        dest_coord.longitude - current_coord.position.longitude,
+        dest_coord.longitude - current_coord.longitude,
+        dest_coord.latitude - current_coord.latitude,
     )
     # Normalize the angle to be between -pi and pi
     normalized_angle = (unnormalized_angle + math.pi) % (2 * math.pi) - math.pi
-    return normalized_angle
+
+    # Convert to degrees
+    angle_in_degrees = math.degrees(normalized_angle)
+    return angle_in_degrees
 
 
 def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
@@ -73,5 +86,7 @@ def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
     ).meters
 
     # log and return
-    llogger.trace(f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m")
+    llogger.trace(
+        f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m"
+    )
     return dist_m
