@@ -1,12 +1,10 @@
 import asyncio
-import dataclasses
 import sys
 from dataclasses import dataclass
 
 import rclpy
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
 from geometry_msgs.msg import PoseStamped, Vector3
-from geopy.distance import distance
 from loguru import logger as llogger
 from rcl_interfaces.msg import ParameterType
 from rclpy.client import Client
@@ -14,7 +12,6 @@ from rclpy.node import Node, ParameterDescriptor
 from rclpy.publisher import Publisher
 from rclpy.qos import QoSPresetProfiles, QoSProfile
 from rclpy.subscription import Subscription
-from rclpy.time import Time
 from simple_pid import PID
 from typing_extensions import override
 
@@ -33,17 +30,11 @@ from custom_interfaces.srv._lights import (
 )
 
 # from custom_interfaces.msg import ArMessage as ArucoMessage
-from .coords import (
-    dist_m_between_coords,
-    get_angle_to_dest,
-)
-from .search import generate_similar_coordinates
-from .types import GoToCoordinateReason, NavigationMode, NavigationParameters
+from .coords import dist_m_between_coords, get_angle_to_target
+from .types import NavigationMode, NavigationParameters
 
-## how long we'll keep the data (DDS).
+## how long we'll keep the data (DDS)
 QOS_PROFILE: QoSProfile = QoSPresetProfiles.SENSOR_DATA.value
-
-SENSOR_TIMEOUT_NS: float = 2.0 * 1_000_000_000
 """
 The amount of time until we ignore a message from a sensor.
 
@@ -91,7 +82,6 @@ class NavigatorNode(Node):
 
     _curr_marker_transform: PoseStamped | None = None
     _times_marker_seen: int = 0
-
 
     _last_searched_coord: GeoPoint | None = None
     """
@@ -277,103 +267,52 @@ class NavigatorNode(Node):
         Note that this function will stop running after it reaches its goal.
         """
 
-        # If goal is reached, turn the node off
-        if self.goal_reached:
-            # Log message that goal was reached
-            _ = self.get_logger().info("Goal reached!")
-            # Set lights to FLASHING GREEN
-            lights_info: LightsRequest = LightsRequest()
-            lights_info.red = 0
-            lights_info.green = 255
-            lights_info.blue = 0
-            lights_info.flashing = True
-            _ = self.send_lights_request(lights_info)
-            rclpy.shutdown()
-            return
+        await self._wait_for_sensors()
 
-        # Ensure we've started receving rover coordinates
-        while self._last_known_rover_coord is None:
-            llogger.warning(
-                "Can't start navigating until the GPS provides a coordinate. Waiting to begin..."
+        # step 1: nav to coordinate.
+        #
+        # no matter what, we're going to navigate to a coordinate, as our
+        # other tasks also require going to one.
+        #
+        # ...grab the coordinate we want to head to
+        target_coord: GeoPoint = self.nav_parameters.coord
+        llogger.info(f"Step 1: go to coordinate! target: {target_coord}")
+
+        dist_to_target_coord_m: float = dist_m_between_coords(
+            self._last_known_rover_coord.position, target_coord
+        )
+
+        # if we're not at the coordinate, go there!
+        if dist_to_target_coord_m > MIN_GPS_DISTANCE:
+            llogger.debug(
+                f"Not yet at target coordinate! Navigating... (coord: {target_coord})"
             )
-            await asyncio.sleep(0.5)
+            await self._go_to_coordinate(target_coord)
 
-        # loop forever.
-        while True:
-            # wait for the GPS and IMU to do something before we begin navigating
-            while (
-                self._last_known_imu_data is None
-                or self._last_known_rover_coord is None
-            ):
-                _ = self.get_logger().warn(
-                    "Sensor data isn't up yet. Waiting to navigate."
-                )
-                _ = self.get_logger().debug(
-                    f"sensor data: imu: {self._last_known_imu_data}, gps: {self._last_known_rover_coord}"
-                )
-                await asyncio.sleep(0.25)
-
-            # step one is to reach the goal's coordinate.
-            #
-            # FIXME: `calculating_aruco_coord` is poorly named and documented
-            # TODO: use a generic + enum here to indicate our progression.
-            # TODO: consider refactoring logic under here into a method we can call
-            if not self.calculating_aruco_coord:
-                # grab the coordinate we want to head to
-                target_coord: GeoPoint = self._coordinate_path_queue[0]
-                llogger.info(f"Step 1: go to coordinate! target: {target_coord}")
-
-                while True:
-                    # find the distance to it
-                    dist_to_target_coord_m: float = dist_m_between_coords(
-                        self._last_known_rover_coord.position, target_coord
-                    )
-
-                    # if we're not at the coordinate, go there!
-                    if dist_to_target_coord_m > MIN_GPS_DISTANCE:
-                        llogger.debug(
-                            f"Not yet at target coordinate! Navigating... (coord: {target_coord})"
-                        )
-                        await self._go_to_coordinate(target_coord)
-                    else:
-                        self.calculating_aruco_coord = True
-                        break
+        # step 2: handle aruco/object detection, if we need to
+        match self.nav_parameters.mode:
+            case NavigationMode.GPS:
                 pass
+            case NavigationMode.ARUCO:
+                _ = self.get_logger().info(
+                    "At requested coordinate! Now searching for ArUco marker."
+                )
+                await self.handle_aruco_navigation()
+            case NavigationMode.OBJECT_DETECTION:
+                _ = self.get_logger().info(
+                    "At requested coordinate! Now performing object detection search."
+                )
+                _ = self.get_logger().fatal(
+                    "Object detection is unimplemented."
+                )
+                sys.exit(1)  # because it's unimplemented.
+                # TODO(bray): remove the above.
 
-            # we're already at the coordinate.
-            #
-            # our next action depends on our mode...
-            #
-            # - GPS: we're done! stop the node.
-            # - others: perform those instead
-            else:
-                llogger.info("Step 2: optional. search for addiitonal object!")
-
-                match self.nav_parameters.mode:
-                    # if we're just going to a coordinate, we're done
-                    case NavigationMode.GPS:
-                        _ = self.get_logger().info(
-                            "At requested coordinate! Mode is GPS, so we're done. The node will now shut down."
-                        )
-                        self.shutdown()
-                        return
-
-                    # for anything else, we'll move on
-                    case NavigationMode.ARUCO:
-                        _ = self.get_logger().info(
-                            "At requested coordinate! Now searching for ArUco marker."
-                        )
-                        await self.handle_aruco_navigation()
-
-                    case NavigationMode.OBJECT_DETECTION:
-                        _ = self.get_logger().info(
-                            "At requested coordinate! Now performing object detection search."
-                        )
-                        _ = self.get_logger().fatal(
-                            "Object detection is unimplemented."
-                        )
-                        self.shutdown()
-                        sys.exit(1)
+        # step 3: we've reached our target! flash lights and return...
+        _ = self.get_logger().info("Goal reached!")
+        self._flash_lights()
+        shutdown(self)
+        return
 
     def stop_wheels(self):
         """
@@ -397,21 +336,27 @@ class NavigatorNode(Node):
         This is a simple implementation that uses a PID controller to navigate to the coordinate, based
         on the rover's current position and the destination coordinate.
         """
-        llogger.info(f"Async task is up! Going to coordinate at {dest_coord}...")
+        llogger.info(
+            f"Async task is up! Going to coordinate at {dest_coord}..."
+        )
 
         # Make sure that we are receiving rover imu and coordinates
         # TODO: Implement a version of this function that actually uses the IMU compass data. For now, we're just using the GPS data
         while self._last_known_rover_coord is None:
-            _ = self.get_logger().warn("no GPS data yet; waiting to navigate...")
+            _ = self.get_logger().warn(
+                "no GPS data yet; waiting to navigate..."
+            )
             await asyncio.sleep(0.25)
 
         # block on getting magnetometer info from IMU
         while self._last_known_imu_data is None:
-            _ = self.get_logger().warn("no IMU data yet. waiting to navigate...")
+            _ = self.get_logger().warn(
+                "no IMU data yet. waiting to navigate..."
+            )
             await asyncio.sleep(0.25)
 
         # grab the x, y, z compass data
-        _compass_info: Vector3 = self._last_known_imu_data.compass
+        compass_info: Vector3 = self._last_known_imu_data.compass
 
         # Start navigating to the coordinates using a PID controller
         # NOTE: I have a funny feeling this will send wheel speeds too fast
@@ -427,6 +372,9 @@ class NavigatorNode(Node):
         llogger.debug("set PID values.")
 
         # We want the rover's angle to the destination be 0
+        #
+        # TODO(bray): this can be (and usually is) a range, say [-15.0, 15.0]
+        #             degrees of range
         TARGET_ANGLE_VALUE: float = 0.0
 
         pid = PID(pk, pi, pd, setpoint=TARGET_ANGLE_VALUE)
@@ -506,84 +454,57 @@ class NavigatorNode(Node):
                 f"Haven't seen the ArUco marker (id: {self._given_aruco_marker_id}) yet. Performing search algorithm..."
             )
             _ = self.get_logger().fatal("searching for aruco is unimplemented!")
-            self.shutdown()
+            shutdown(self)
             sys.exit(1)
 
+    def _flash_lights(self):
         """
-        # only use old info if ArUco marker has been seen in the last 2 seconds
-        time_since_aruco_marker: Time = Time().from_msg(
-            self._curr_marker_transform.header.stamp
-        )
-        if self._sensor_data_timed_out(time_since_aruco_marker):
-            # if we've seen the marker this frame, increase the counter.
-            #
-            # when we've seen it enough times, we'll start moving
-            # toward it.
-            #
-            # this strategy reduces the likelihood of false positives
-            # impacting our plan/route
-            self._times_marker_seen += 1
+        we have reached our goal, so we are going to ask the `lights_node` to
+        flash the lights for us, then shut down.
 
-            # Calculate distance to marker
-            distance_to_marker = get_distance_to_marker(
-                self._curr_marker_transform
+        flashing the lights is a requirement from
+        """
+        # Set lights to FLASHING GREEN
+        lights_info: LightsRequest = LightsRequest()
+        lights_info.red = 0
+        lights_info.green = 255
+        lights_info.blue = 0
+        lights_info.flashing = True
+        _ = self.send_lights_request(lights_info)
+        return
+
+    async def _wait_for_sensors(self):
+        """
+        This function will return after we get sensor information from all
+        required sensors.
+
+        Await it to idle until we have sensor data.
+        """
+        # Ensure we've started receving rover coordinates
+        while self._last_known_rover_coord is None:
+            llogger.warning(
+                "Can't start navigating until the GPS provides a coordinate. Waiting to begin..."
             )
+            await asyncio.sleep(0.5)
+        pass
 
-            if distance_to_marker < MIN_ARUCO_DISTANCE:
-                # stop the coroutine
-                self._go_to_coordinate_cor = None
-                # stop the wheels
-                self.stop_wheels()
-                # WARNING: by making this `True`, we tell the function to
-                # stop itself from running the next time it's called
-                self.goal_reached = True
-                return
-            elif self._times_marker_seen > 20:
-                # WARNING! Won't this keep calculating the ArUco coordinate and appending to the coordinate queue after 20?
-
-                # check that we have recv'd any messages from the gps
-                if self._last_known_rover_coord is None:
-                    llogger.warning(
-                        "Found marker 20 times, but never got any Rover GPS coordinates! Returning early."
-                    )
-                    return
-
-                # Calculate the coordinate of the ArUco marker given the current Rover coordinate and the ArUco pose
-                aruco_coord = coordinate_from_aruco_pose(
-                    self._last_known_rover_coord,
-                    self._curr_marker_transform,
-                )
-                # Clear the coordinate queue
-                self._coordinate_path_queue.clear()
-                # Update rover coords queue and stop calculating aruco coordinate
-                self._coordinate_path_queue.insert(0, aruco_coord)
-                # Generate search coordinates around the ArUco coordinate
-                self._coordinate_path_queue.extend(
-                    generate_similar_coordinates(aruco_coord, 10, 5)
-                )
-                # Append original GPS coordinate to the end of the queue
-                self._coordinate_path_queue.append(
-                    self.nav_parameters.coord
-                )
-                # NOTE: Should we reset the times marker seen here?
-                self.calculating_aruco_coord = False
-            else:
-                # Stop the coroutine (set it to none) so that we can sit still and check to see if we've seen the marker enough times
-                self._go_to_coordinate_cor = None
-                # Stop the wheels
-                self.stop_wheels()
-                self.calculating_aruco_coord = True
-
-        else:  # Lost the marker, start traversing to previous coord
-            self._times_marker_seen = 0
-            self.calculating_aruco_coord = False
-        """
+        # wait for the GPS and IMU to do something before we begin navigating
+        while (
+            self._last_known_imu_data is None
+            or self._last_known_rover_coord is None
+        ):
+            _ = self.get_logger().warn(
+                "Sensor data isn't up yet. Waiting to navigate."
+            )
+            _ = self.get_logger().debug(
+                f"sensor data: imu: {self._last_known_imu_data}, gps: {self._last_known_rover_coord}"
+            )
+            await asyncio.sleep(0.25)
+        pass
 
     def gps_callback(self, msg: GpsMessage):
         coord: GeoPointStamped = GeoPointStamped()
 
-        # FIXME: need to stamp this message! consider changing msg types on
-        #        the Rust side!
         coord.position.latitude = msg.lat
         coord.position.longitude = msg.lon
         coord.position.altitude = msg.height
@@ -596,6 +517,20 @@ class NavigatorNode(Node):
     def imu_callback(self, msg: ImuMessage):
         self._last_known_imu_data = msg
 
+    pass
+
+
+pass
+
+"""
+HEY!
+
+The following is related to starting the `asyncio` runtime and creating tasks
+to handle the ROS 2 node + `rclpy` connection.
+
+You don't need to touch it when adjusting behavior...
+"""
+
 
 def main(args: list[str] | None = None):
     """
@@ -607,7 +542,9 @@ def main(args: list[str] | None = None):
     # spin the ros 2 node and run our logic... at the same time!
     #
     # for more info, see: https://github.com/m2-farzan/ros2-asyncio
-    future = asyncio.wait([ros_spin(navigator_node), navigator_node.navigator()])
+    future = asyncio.wait(
+        [ros_spin(navigator_node), navigator_node.navigator()]
+    )
     _ = asyncio.get_event_loop().run_until_complete(future)
 
     # destroy the Node explicitly
@@ -615,6 +552,12 @@ def main(args: list[str] | None = None):
     # this is optional - otherwise, the garbage collector does it automatically
     # when it runs.
     navigator_node.destroy_node()
+    rclpy.shutdown()
+
+
+def shutdown(n: NavigatorNode):
+    """Immediately turns off the Navigator."""
+    n.stop_wheels()
     rclpy.shutdown()
 
 
@@ -628,4 +571,6 @@ async def ros_spin(node: Node):
         rclpy.spin_once(node, timeout_sec=0)
         await asyncio.sleep(1e-4)
 
-    llogger.error("`rclpy.ok()` no longer True. the node is no longer spinning.")
+    llogger.error(
+        "`rclpy.ok()` no longer True. the node is no longer spinning."
+    )
