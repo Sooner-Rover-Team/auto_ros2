@@ -82,7 +82,5 @@ def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
     ).meters
 
     # log and return
-    llogger.trace(
-        f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m"
-    )
+    llogger.trace(f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m")
     return dist_m

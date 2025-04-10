@@ -146,7 +146,9 @@ class NavigatorNode(Node):
         coord: GeoPoint = GeoPoint()
         coord.latitude = latitude
         coord.longitude = longitude
-        coord.altitude = 0.0  # TODO(bray): literally just take this from the rust library lol
+        coord.altitude = (
+            0.0  # TODO(bray): literally just take this from the rust library lol
+        )
 
         mode_int: int | None = self.get_parameter("mode").value
         if mode_int is None:
@@ -246,9 +248,7 @@ class NavigatorNode(Node):
         return super().__hash__()
 
     # Function to send lights request given a LightsRequest class instance
-    def send_lights_request(
-        self, lights_info: LightsRequest
-    ) -> LightsResponse | None:
+    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:
         """
         Send a request to the lights service to turn the lights red.
         """
@@ -302,9 +302,7 @@ class NavigatorNode(Node):
                 _ = self.get_logger().info(
                     "At requested coordinate! Now performing object detection search."
                 )
-                _ = self.get_logger().fatal(
-                    "Object detection is unimplemented."
-                )
+                _ = self.get_logger().fatal("Object detection is unimplemented.")
                 sys.exit(1)  # because it's unimplemented.
                 # TODO(bray): remove the above.
 
@@ -336,23 +334,17 @@ class NavigatorNode(Node):
         This is a simple implementation that uses a PID controller to navigate to the coordinate, based
         on the rover's current position and the destination coordinate.
         """
-        llogger.info(
-            f"Async task is up! Going to coordinate at {dest_coord}..."
-        )
+        llogger.info(f"Async task is up! Going to coordinate at {dest_coord}...")
 
         # Make sure that we are receiving rover imu and coordinates
         # TODO: Implement a version of this function that actually uses the IMU compass data. For now, we're just using the GPS data
         while self._last_known_rover_coord is None:
-            _ = self.get_logger().warn(
-                "no GPS data yet; waiting to navigate..."
-            )
+            _ = self.get_logger().warn("no GPS data yet; waiting to navigate...")
             await asyncio.sleep(0.25)
 
         # block on getting magnetometer info from IMU
         while self._last_known_imu_data is None:
-            _ = self.get_logger().warn(
-                "no IMU data yet. waiting to navigate..."
-            )
+            _ = self.get_logger().warn("no IMU data yet. waiting to navigate...")
             await asyncio.sleep(0.25)
 
         # grab the x, y, z compass data
@@ -389,9 +381,7 @@ class NavigatorNode(Node):
                 self._last_known_rover_coord.position, self.nav_parameters.coord
             )
             if dist_to_target_coord_m < MIN_GPS_DISTANCE:
-                _ = self.get_logger().info(
-                    "at the coordinate! stopping navigation..."
-                )
+                _ = self.get_logger().info("at the coordinate! stopping navigation...")
                 break
 
             angle_to_target = get_angle_to_target(
@@ -425,12 +415,8 @@ class NavigatorNode(Node):
             # - make sure they aren't above max or min
             #
             # max speed (forward) = 255, max speed (reverse) = 0, stopped = 126
-            wheel_speeds.left_wheels = max(
-                0, min(255, wheel_speeds.left_wheels)
-            )
-            wheel_speeds.right_wheels = max(
-                0, min(255, wheel_speeds.right_wheels)
-            )
+            wheel_speeds.left_wheels = max(0, min(255, wheel_speeds.left_wheels))
+            wheel_speeds.right_wheels = max(0, min(255, wheel_speeds.right_wheels))
             llogger.debug(f"filtered speeds: {wheel_speeds}.")
 
             # Publish the wheel speeds
@@ -489,13 +475,8 @@ class NavigatorNode(Node):
         pass
 
         # wait for the GPS and IMU to do something before we begin navigating
-        while (
-            self._last_known_imu_data is None
-            or self._last_known_rover_coord is None
-        ):
-            _ = self.get_logger().warn(
-                "Sensor data isn't up yet. Waiting to navigate."
-            )
+        while self._last_known_imu_data is None or self._last_known_rover_coord is None:
+            _ = self.get_logger().warn("Sensor data isn't up yet. Waiting to navigate.")
             _ = self.get_logger().debug(
                 f"sensor data: imu: {self._last_known_imu_data}, gps: {self._last_known_rover_coord}"
             )
@@ -542,9 +523,7 @@ def main(args: list[str] | None = None):
     # spin the ros 2 node and run our logic... at the same time!
     #
     # for more info, see: https://github.com/m2-farzan/ros2-asyncio
-    future = asyncio.wait(
-        [ros_spin(navigator_node), navigator_node.navigator()]
-    )
+    future = asyncio.wait([ros_spin(navigator_node), navigator_node.navigator()])
     _ = asyncio.get_event_loop().run_until_complete(future)
 
     # destroy the Node explicitly
@@ -571,6 +550,4 @@ async def ros_spin(node: Node):
         rclpy.spin_once(node, timeout_sec=0)
         await asyncio.sleep(1e-4)
 
-    llogger.error(
-        "`rclpy.ok()` no longer True. the node is no longer spinning."
-    )
+    llogger.error("`rclpy.ok()` no longer True. the node is no longer spinning.")

@@ -36,7 +36,7 @@ jobs:
       #
       # this'll use colcon
       - name: Build ROS 2 workspace
-        uses: ros-tooling/action-ros-ci@0.4
+        uses: ros-tooling/action-ros-ci@v0.4
         with:
           target-ros2-distro: humble
           coverage-result: false
