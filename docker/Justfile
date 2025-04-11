@@ -66,6 +66,9 @@ run:
     echo -e "${GREEN}Container started successfully!${NOCOLOR}"
     echo
 
+    # print our logo because its cool
+    bash ./scripts/print_soro_logo.bash
+
     # tell the user how to log in
     echo -e "${LIGHTRED}Please open the following link in your browser:${NOCOLOR}"
     echo -e "${LIGHTPURPLE}http://localhost:5801/vnc.html?host=localhost&port=5901${NOCOLOR}"
