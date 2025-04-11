@@ -1,7 +1,8 @@
-# Some basic commands to help build the simulator image.
+# Some basic commands to help build and run the simulator image.
 
-set shell := ["fish", "-c"]
+set shell := ["bash", "-c"]
 ros2_workspace_dir := justfile_directory()
+
 
 build:
     - sudo docker stop soro
@@ -9,5 +10,67 @@ build:
     sudo docker build . -t ros2-soro --network host
 
 run:
-    AUTO_ROS2_REPO_LOCATION=(realpath {{ros2_workspace_dir}}/..) \
-        sudo docker compose up -d
+    #!/usr/bin/env bash
+    #
+    # set some color variables for printing
+    NOCOLOR='\033[0m'
+    LIGHTRED='\033[1;31m'
+    GREEN='\033[0;32m'
+    BLUE='\033[0;34m'
+    LIGHTPURPLE='\033[1;35m'
+
+    # find the workspace dir (since we're gonna mount it)
+    declare -x AUTO_ROS2_REPO_LOCATION="$(realpath "{{ros2_workspace_dir}}/..")"
+    echo -e "${BLUE}We'll mount the \`auto_ros2\` repo with path: \`${LIGHTPURPLE}$AUTO_ROS2_REPO_LOCATION${BLUE}\`${NOCOLOR}"
+
+    # here, we're going to check for SELinux permissions. without it, we can
+    # experience failures when attempting to mount on systems with secure
+    # default settings on SELinux.
+    echo -e "Checking SELinux permissions..."
+    bash ./scripts/fix_selinux.bash
+    echo -e "${BLUE}SELinux is configured correctly.${NOCOLOR}"
+
+    # check if we need to use `sudo`.
+    #
+    # (we don't want it on macOS)
+    source ./scripts/find_sudo.bash
+
+    # if we're on linux, fix the networking
+    if [ "$(uname)" = "Linux" ]; then
+        echo "Attempting to fix networking on Linux..."
+        echo "${LIGHTRED}Please enter your password if prompted!${NOCOLOR}"
+
+        # find docker's bridge network ip range
+        #
+        # note: copilot made that regex, dont trust it 100%
+        DOCKER_SUBNET=$(sudo docker network inspect bridge | grep -oP '"Subnet": "\K[^"]+')
+        DOCKER_INTERFACE="docker0"
+
+        # on that range, we'll want to allow it on iptables
+        sudo sysctl -w net.ipv4.ip_forward=1 >> /dev/null || true
+        sudo iptables -P FORWARD ACCEPT >> /dev/null || true
+        sudo iptables -t nat -A POSTROUTING -s $DOCKER_SUBNET ! -o $DOCKER_INTERFACE -j MASQUERADE >> /dev/null || true
+
+        echo
+        echo "Network fix applied!"
+    fi
+
+    # remove any existing container. we dont want that mf around
+    $OPTIONAL_SUDO docker compose down
+    $OPTIONAL_SUDO docker rm soro >> /dev/null || true
+
+    echo -e "Starting Docker container..."
+    echo -e "${LIGHTRED}If requested, please enter your password.${NOCOLOR}"
+    $OPTIONAL_SUDO docker compose up -d
+    echo
+    echo -e "${GREEN}Container started successfully!${NOCOLOR}"
+    echo
+
+    # tell the user how to log in
+    echo -e "${LIGHTRED}Please open the following link in your browser:${NOCOLOR}"
+    echo -e "${LIGHTPURPLE}http://localhost:5801/vnc.html?host=localhost&port=5901${NOCOLOR}"
+    echo
+    echo -e "${LIGHTRED}Alternatively, for better performance, paste this into TurboVNC Viewer:${NOCOLOR}"
+    echo -e "${LIGHTPURPLE}localhost:5901${NOCOLOR}"
+    echo
+    echo -e "${LIGHTRED}Note that the password is \`${LIGHTPURPLE}NotIan!${LIGHTRED}\`, with the punctuation.${NOCOLOR}"

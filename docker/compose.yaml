@@ -5,12 +5,13 @@ services:
     ports:
       - "5901:5901"
       - "5801:5801"
+    environment:
+      - AUTO_ROS2_REPO_LOCATION
     tty: true
     stdin_open: true
     restart: unless-stopped
-
-    # mount the `auto_ros2` repo from your computer
     volumes:
+      # mount the `auto_ros2` repo from your computer
       - type: bind
         source: ${AUTO_ROS2_REPO_LOCATION}
         target: /home/soro/auto_ros2
