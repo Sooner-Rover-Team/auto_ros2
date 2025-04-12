@@ -12,54 +12,87 @@ def make_geopoint(lat: float, lon: float, alt: float) -> GeoPoint:
 
     return pt
 
-
 # takes long, lat (x,y)
 def calc_angle(
     target_longitude: float,
     target_latitude: float,
+    robot_heading: float,
 ) -> float:
-    """calc_angle_to_target_from_robot"""
-
-    """base helper function for tests"""
+    """Calculate the angle from the robot to the destination."""
     # coordinate of the robot
     robot_coord: GeoPoint = make_geopoint(0.0, 0.0, 0.0)
 
     # coordinate of some {location, tag, object}
-    # Get the angle to a coordinate that is in front of the robot
     target_coord: GeoPoint = make_geopoint(
         target_latitude, target_longitude, 0.0
     )
 
-    # a target in front of rover will have an angle diff. of 0 deg.
-    return calc_angle_to_target(target_coord, robot_coord)
+    return calc_angle_to_target(target_coord, robot_coord, robot_heading)
 
 
-def test_origin_lon_diff():
+def test_calc_target_north():
     """
-    at the origin, putting a target right in front of the Rover should
-    result in an angle of .
+    When the robot is at origin and the target is North.
     """
-    # a target in front of rover will have an angle diff. of 0 deg.
-    assert calc_angle(0.0, 0.0001) == 0
 
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [0, -45, -90, -135, -180, 135, 90, 45, 0] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+       assert calc_angle(0.0, 1.0, robot_heading) == expected_error # far away target
+       assert calc_angle(0.0, 0.0001, robot_heading) == expected_error # close target
 
-def test_two_lon_diff():
-    """same as above, but far from the origin"""
-    # a target in front of rover will have an angle diff. of 0 deg.
-    assert calc_angle(0.0, 1.0) == 0
+def test_calc_target_northeast():
+    # Simulate the target being Northeast and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [45, 0, -45, -90, -135, -180, 135, 90, 45] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+       assert calc_angle(1.0, 1.0, robot_heading) == expected_error # far away target
+       assert calc_angle(0.0001, 0.0001, robot_heading) == expected_error # close target
 
+def test_calc_target_east():
+    # Simulate the target being East and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [90, 45, 0, -45, -90, -135, -180, 135, 90] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(1.0, 0.0, robot_heading) == expected_error # far away target
+        assert calc_angle(0.0001, 0.0, robot_heading) == expected_error # close target
 
-def test_left_angle():
-    """Test that a destination to our east will be -90 degrees from the rover"""
-    assert calc_angle(-1.0, 0.0) == -90.0
+def test_calc_target_southeast():
+    # Simulate the target being Southeast and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [135, 90, 45, 0, -45, -90, -135, -180, 135] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(1.0, -1.0, robot_heading) == expected_error # far away target
+        assert calc_angle(0.0001, -0.0001, robot_heading) == expected_error # close target
 
+def test_calc_target_south():
+    # Simulate the target being South and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [-180, 135, 90, 45, 0, -45, -90, -135, -180] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(0.0, -1.0, robot_heading) == expected_error # far away target
+        assert calc_angle(0.0, -0.0001, robot_heading) == expected_error # close target
 
-def test_right_angle():
-    """Test that a destination to our west will be 90 degrees from the rover"""
-    assert calc_angle(1.0, 0.0) == 90.0
-    pass
+def test_calc_target_southwest():
+    # Simulate the target being South and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [-135, -180, 135, 90, 45, 0, -45, -90, -135] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(-1.0, -1.0, robot_heading) == expected_error # far away target
+        assert calc_angle(-0.0001, -0.0001, robot_heading) == expected_error # close target
 
+def test_calc_target_west():
+    # Simulate the target being South and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [-90, -135, -180, 135, 90, 45, 0, -45, -90] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(-1.0, 0.0, robot_heading) == expected_error # far away target
+        assert calc_angle(-0.0001, 0.0, robot_heading) == expected_error # close target
 
-def test_behind_angle():
-    """Checking angle when a target is directly behind (south)"""
-    assert calc_angle(0.0, -1.0) == -180.0
+def test_calc_target_northwest():
+    # Simulate the target being South and the robot being at different directions to the target
+    robot_headings = [degree for degree in range(0, 361, 45)] # degrees from 0 to 360
+    expected_errors = [-45, -90, -135, -180, 135, 90, 45, 0, -45] # in degrees
+    for robot_heading, expected_error in zip(robot_headings, expected_errors):
+        assert calc_angle(-1.0, 1.0, robot_heading) == expected_error # far away target
+        assert calc_angle(-0.0001, 0.0001, robot_heading) == expected_error # close target
