@@ -62,8 +62,8 @@ def get_angle_to_target(
     - `compass_z_degrees` must be normalized and within [0, 360] degrees.
     """
     unnormalized_angle = math.atan2(
-        dest_coord.latitude - current_coord.position.latitude,
-        dest_coord.longitude - current_coord.position.longitude,
+        dest_coord.longitude - current_coord.longitude,
+        dest_coord.latitude - current_coord.latitude,
     )
     # Normalize the angle to be between -pi and pi
     normalized_angle = (unnormalized_angle + math.pi) % (2 * math.pi) - math.pi

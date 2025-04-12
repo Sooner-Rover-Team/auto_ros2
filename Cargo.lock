@@ -183,6 +183,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
+name = "bytemuck"
+version = "1.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b1fc10dbac614ebc03540c9dbd60e83887fda27794998c6528f1782047d540"
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -432,9 +438,10 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "feedback"
-version = "0.2.3"
-source = "git+https://github.com/onkoe/feedback#5e1e27bdb225ff20efeb4c968336544247d0dca2"
+version = "0.2.4"
+source = "git+https://github.com/onkoe/feedback#e2ade920b798ed6c358d3c1d2c9784a7bd61b6e5"
 dependencies = [
+ "bytemuck",
  "futures-lite",
  "thiserror 2.0.11",
  "tokio",
@@ -1361,6 +1368,7 @@ name = "sensors_node"
 version = "0.1.0"
 dependencies = [
  "camino",
+ "feedback",
  "ros2-client",
  "serde",
  "soro_gps",
