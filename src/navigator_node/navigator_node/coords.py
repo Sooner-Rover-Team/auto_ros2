@@ -51,25 +51,29 @@ def get_distance_to_marker(marker: PoseStamped) -> float:
     return distance_to_marker
 
 
-def get_angle_to_target(
+def calc_angle_to_target(
     dest_coord: GeoPoint,
     current_coord: GeoPointStamped,
-    compass_z_degrees: float,
+    heading_degrees: float,
 ) -> float:
     """
     Calculate the angle from the robot to the destination.
 
-    - `compass_z_degrees` must be normalized and within [0, 360] degrees.
+    - `heading_degrees` must be normalized and within [0, 360] degrees.
     """
-    unnormalized_angle = math.atan2(
+    # Angle from the robot to the target (bearing)
+    bearing_radians = math.atan2(
         dest_coord.longitude - current_coord.longitude,
         dest_coord.latitude - current_coord.latitude,
     )
-    # Normalize the angle to be between -pi and pi
-    normalized_angle = (unnormalized_angle + math.pi) % (2 * math.pi) - math.pi
+    bearing_degrees = math.degrees(bearing_radians)
 
-    error: float = normalized_angle - compass_z_degrees
-    return error
+    # Calculate the angle needed to turn to the target
+    error_degrees: float = bearing_degrees - heading_degrees
+
+    # Normalize the error to be between -180 and 180
+    normalized_error_degrees = ((error_degrees + 180) % 360) - 180
+    return normalized_error_degrees
 
 
 def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
