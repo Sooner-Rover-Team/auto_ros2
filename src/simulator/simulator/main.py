@@ -195,9 +195,7 @@ class SoroBridge(Node):
         # from wikipedia:
         #
         # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        yaw = math.atan2(
-            2.0 * (qw * qz + qx * qy), 1.0 - (2.0 * (qy * qy + qz * qz))
-        )
+        yaw = math.atan2(2.0 * (qw * qz + qx * qy), 1.0 - (2.0 * (qy * qy + qz * qz)))
 
         # convert it into degrees
         compass_degrees = (math.degrees(yaw) + 360) % 360

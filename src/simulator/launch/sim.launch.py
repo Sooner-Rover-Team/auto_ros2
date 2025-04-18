@@ -48,9 +48,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(gz_launch_path),
         launch_arguments={
             "gz_args": [
-                PathJoinSubstitution(
-                    [pkg_simulator, "resource", "world.sdf.xml"]
-                ),
+                PathJoinSubstitution([pkg_simulator, "resource", "world.sdf.xml"]),
                 " -r",
             ],
             "on_exit_shutdown": "True",
@@ -68,9 +66,7 @@ def generate_launch_description():
         executable="navigator_node",
         package="navigator_node",
         name="navigator",
-        parameters=[
-            {"longitude": longitude, "latitude": latitude, "mode": mode_int}
-        ],
+        parameters=[{"longitude": longitude, "latitude": latitude, "mode": mode_int}],
     )
 
     return LaunchDescription(
