@@ -14,7 +14,9 @@ For info about conventions (how we write/upload code, etc.), please see [our doc
 
 ## Launch the Code
 
-Unless you want to suffer, you'll need the SoRo Docker container set up on your computer before continuing. Please [see its documentation](./docker/README.md) to set it up, then come back when you're done.
+Please complete the Setup section in [our contributing tutorial](./CONTRIBUTING.md).
+
+Oh, and unless you want to suffer, you'll need the SoRo Docker container set up on your computer before continuing. Please [see its documentation](./docker/README.md) to get it working, then come back when you're done.
 
 Okay, all done? Let's run the code!
 
