@@ -53,10 +53,17 @@ Audited 68 packages in 0.02ms
 
 # we have the dependencies now!
 #
-# we'll use the "fish source script" to grab all the ROS 2 stuff.
+# we'll use the fish "source script" to grab all the ROS 2 stuff.
 #
-# you may get an error saying that there's "no such file or directory", but
-# that's completely fine.
+# quick note for that source script: `fish` is a shell (like `bash` and `zsh)
+# that we use on the Rover. it's good for debugging, and autocompletes commands
+# for you.
+#
+# if you're using ROS 2 locally (highly unlikely), you can use the alternative
+# `SOURCE_SCRIPT.bash` instead.
+#
+# anyway, when running the script, you might get an error saying that there's
+# "no such file or directory", but that's completely fine - you can ignore it!
 #
 # (it just means you haven't built the code yet)
 soro@71b7d4dde026 ~/auto_ros2 (docs/april_pass)> . ./SOURCE_SCRIPT.fish
