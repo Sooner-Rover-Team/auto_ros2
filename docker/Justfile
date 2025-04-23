@@ -15,7 +15,13 @@ build:
     $OPTIONAL_SUDO $DOCKER rm soro &> /dev/null || true
     $OPTIONAL_SUDO $DOCKER build . -t ros2-soro
 
-run:
+run-local: build
+    just run "false"
+
+run-remote:
+    just run "true"
+
+run $DOWNLOAD_IMAGE='true':
     #!/usr/bin/env bash
     #
     # set some color variables for printing
@@ -62,6 +68,20 @@ run:
 
         echo
         echo "Network fix applied!"
+    fi
+
+    # download the image, if requested, to avoid building it ourselves
+    if [ "$DOWNLOAD_IMAGE" = "true" ]; then
+        # set the "image name" for the docker compose file
+        export IMAGE_NAME="ghcr.io/sooner-rover-team/auto_ros2:latest"
+
+        # perform the download
+        echo -e "Downloading Docker image..."
+        $OPTIONAL_SUDO $DOCKER pull $IMAGE_NAME
+        echo -e "Download complete!"
+    else
+        echo -e "Local image requested. Using that... (download image was: $DOWNLOAD_IMAGE)"
+        export IMAGE_NAME="ros2-soro:latest"
     fi
 
     # remove any existing container. we dont want that mf around

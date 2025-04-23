@@ -1,6 +1,6 @@
 services:
   soro:
-    image: ros2-soro
+    image: ${IMAGE_NAME:-ros2-soro:latest}
     container_name: soro
     ports:
       - "5901:5901"
