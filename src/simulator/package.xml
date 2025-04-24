@@ -13,6 +13,8 @@
   <depend>robot_state_publisher</depend>
   <depend>ros_gz_bridge</depend>
   <depend>ros_gz_sim</depend>
+  <depend>rqt_graph</depend>
+  <depend>rviz2</depend>
   <depend>xacro</depend>
 
   <test_depend>launch</test_depend>

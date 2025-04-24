@@ -33,6 +33,11 @@ our work in here... :D
 <xacro:property name="color_camera_frame_width" value="1280" />
 <xacro:property name="color_camera_frame_height" value="720" />
 <xacro:property name="color_camera_fov" value="1.05" />
+<xacro:property name="depth_camera_topic" value="/sensors/depth_image" />
+<xacro:property name="depth_camera_refresh_speed" value="100" />
+<xacro:property name="depth_camera_frame_width" value="662" />
+<xacro:property name="depth_camera_frame_height" value="376" />
+<xacro:property name="depth_camera_fov" value="1.10" />
 
 <!--
 
@@ -169,6 +174,24 @@ links a wheel to a controller plugin in the simulator.
         <origin xyz="0 0 0.2" rpy="0 0 0"/>
     </joint>
 
+    <!-- add a link + joint for the camera -->
+    <link name="camera_link">
+        <inertial>
+            <mass value="0.1"/>
+            <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <box size="0.05 0.05 0.05"/>
+            </geometry>
+            <material name="red"/>
+        </visual>
+    </link>
+    <joint name="camera_joint" type="fixed">
+        <parent link="chassis"/>
+        <child link="camera_link"/>
+        <origin xyz="0.3 0.0 0.1" rpy="0 0 0"/>
+    </joint>
 
     <link name="chassis">
         <origin xyz="0 0 0.2" rpy="0 0 0" />
@@ -223,9 +246,12 @@ links a wheel to a controller plugin in the simulator.
             <update_rate>${gps_update_speed}</update_rate>
             <topic>${gps_topic}</topic>
         </sensor>
+    </gazebo>
 
-        <!-- color camera -->
+    <!-- color camera -->
+    <gazebo reference="camera_link">
         <sensor name="mono_image" type="camera">
+            <pose>0.3 0.0 0.1 0 0 0</pose>
             <visualize>true</visualize>
             <update_rate>${color_camera_refresh_speed}</update_rate>
             <topic>${color_camera_topic}</topic>
@@ -234,6 +260,29 @@ links a wheel to a controller plugin in the simulator.
                 <image>
                     <width>${color_camera_frame_width}</width>
                     <height>${color_camera_frame_height}</height>
+                </image>
+                <clip>
+                    <near>0.1</near>
+                    <far>150.0</far>
+                </clip>
+            </camera>
+        </sensor>
+    </gazebo>
+
+    <!-- depth camera -->
+    <gazebo reference="camera_link">
+        <sensor name="depth_image" type="depth_camera">
+            <visualize>true</visualize>
+            <update_rate>${depth_camera_refresh_speed}</update_rate>
+            <topic>${depth_camera_topic}</topic>
+            <always_on>1</always_on>
+
+            <camera>
+                <horizontal_fov>${depth_camera_fov}</horizontal_fov>
+                <image>
+                    <width>${depth_camera_frame_width}</width>
+                    <height>${depth_camera_frame_height}</height>
+                    <format>R_FLOAT32</format>
                 </image>
                 <clip>
                     <near>0.1</near>

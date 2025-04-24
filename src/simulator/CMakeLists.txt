@@ -19,6 +19,7 @@ ament_python_install_package(${PROJECT_NAME})
 # add a script to act like a binary for the cmake build
 install(PROGRAMS
   scripts/simulator
+  scripts/save_image
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -26,6 +27,7 @@ install(PROGRAMS
 #
 # (yes this is insane, shoutout copilot for matching my freak)
 install(CODE "execute_process(COMMAND chmod +x \${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/simulator)")
+install(CODE "execute_process(COMMAND chmod +x \${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/save_image)")
 
 # test stuff
 if(BUILD_TESTING)

@@ -51,6 +51,11 @@ soro@71b7d4dde026 ~/auto_ros2 (docs/april_pass)> uv sync
 Resolved 90 packages in 9ms
 Audited 68 packages in 0.02ms
 
+# we'll also need the ROS 2 dependencies, which are different.
+#
+# grab a drink, this command can take a bit...
+soro@71b7d4dde026 ~/auto_ros2 (docs/april_pass)> . .venv/bin/activate.fish && just get
+
 # we have the dependencies now!
 #
 # we'll use the fish "source script" to grab all the ROS 2 stuff.

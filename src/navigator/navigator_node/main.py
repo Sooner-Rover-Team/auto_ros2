@@ -412,7 +412,7 @@ class NavigatorNode(Node):
                     f"PID returned none for angle: {angle_to_target}"
                 )
                 continue
-            llogger.debug(f"angle target: {angle_to_target}, pid: {pid_value}.")
+            llogger.trace(f"angle target: {angle_to_target}, pid: {pid_value}.")
 
             # adjust them by the pid correction output
             left_wheels += pid_value
@@ -438,14 +438,12 @@ class NavigatorNode(Node):
             #
             # so... we can just start moving toward it :D
             if abs(angle_to_target) < 10.0:  # degrees
-                llogger.error("TODO: REMOVE")
-                llogger.error("set same wheel speeds (we're facing the target)")
                 wheel_speeds.right_wheels = 126 + 80
                 wheel_speeds.left_wheels = 126 + 80
 
             # Publish the wheel speeds
             self._wheels_publisher.publish(wheel_speeds)
-            llogger.info(
+            llogger.trace(
                 f"Sending wheel speeds: left: {wheel_speeds.left_wheels}, right: {wheel_speeds.right_wheels}"
             )
 
@@ -458,7 +456,7 @@ class NavigatorNode(Node):
             distance_from_target_m = dist_m_between_coords(
                 self._last_known_rover_coord.position, self.nav_parameters.coord
             )
-            llogger.error(f"distance from target: {int(distance_from_target_m)} meters")
+            llogger.trace(f"distance from target: {int(distance_from_target_m)} meters")
 
         # when we're done running, stop the wheels explicitly
         self.stop_wheels()

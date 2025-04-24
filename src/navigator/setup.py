@@ -1,6 +1,8 @@
 from setuptools import find_packages, setup
 
-package_name = "navigator_node"
+package_name = "navigator"
+navigator_node_name = "navigator_node"
+
 
 _ = setup(
     name=package_name,
@@ -10,9 +12,11 @@ _ = setup(
     data_files=[
         (
             "share/ament_index/resource_index/packages",
-            ["resource/" + package_name],
+            ["resource/" + navigator_node_name],
         ),
-        ("share/" + package_name, ["package.xml"]),
+        #
+        # note: please put a new entry in this array for each node in the pkg
+        ("share/" + navigator_node_name, ["package.xml"]),
     ],
     zip_safe=True,
     maintainer="brendan",

@@ -28,3 +28,6 @@ target/
 #
 # we'll ignore that here
 bin/**
+
+# image saved by the simulator camera script
+camera_image.png

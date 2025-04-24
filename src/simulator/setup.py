@@ -21,6 +21,7 @@ _ = setup(
             ["resource/rover.urdf.xacro.xml"],
         ),
         ("share/" + package_name + "/params", ["params/bridge.yaml"]),
+        ("share/" + package_name + "/params", ["params/nav2.yaml"]),
     ],
     zip_safe=True,
     maintainer="Barrett Ray",

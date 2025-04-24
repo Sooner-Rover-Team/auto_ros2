@@ -61,7 +61,7 @@ def calc_angle_to_target(
 
     - `heading_degrees` must be normalized and within [0, 360] degrees.
     """
-    llogger.debug(f"rover heading: {heading_degrees} deg")
+    llogger.trace(f"rover heading: {heading_degrees} deg")
 
     # Angle from the robot to the target (bearing)
     bearing_radians = math.atan2(

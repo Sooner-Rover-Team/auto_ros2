@@ -11,15 +11,14 @@ import launch_testing.actions
 import launch_testing.markers
 import pytest
 from ament_index_python.packages import get_package_share_directory
-from launch_testing import IoHandler, ProcInfoHandler
-from launch_testing.actions import ReadyToTest
-
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     PathJoinSubstitution,
 )
+from launch_testing import IoHandler, ProcInfoHandler
+from launch_testing.actions import ReadyToTest
 
 
 @pytest.mark.launch_test
@@ -63,6 +62,7 @@ class TestGazeboLaunch(unittest.TestCase):
             "robot_state_publisher",  # rover model macro runner
             "create",  # rover model spawner
             "parameter_bridge",  # (gz) bridge
+            "image_bridge",  # (gz camera) bridge
             "simulator",  # (soro) bridge
             # note: we actually skip gazebo, as it can run forever
         ]

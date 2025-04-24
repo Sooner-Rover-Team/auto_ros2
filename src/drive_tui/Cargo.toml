@@ -1,0 +1,9 @@
+[package]
+name = "drive_tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.98"
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
+# add some stuff here, eventually

@@ -2,7 +2,7 @@
 
 import sys
 
-from simulator.main import main
+from simulator.save_image import main
 
 if __name__ == "__main__":
     sys.exit(main())

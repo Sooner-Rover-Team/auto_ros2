@@ -19,6 +19,7 @@ However, its a fixed focus camera, and no approximation of its range was given i
 ## Depth Camera
 
 - connection: USB 3.1
+- datasheet: [available here](https://cdn.sanity.io/files/s18ewfw4/staging/c059860f8fe49f3856f6b8da770eb13cc543ac2c.pdf/ZED%202i%20Datasheet%20v1.2.pdf)
 
 We use a [ZED 2i](https://www.stereolabs.com/store/products/zed-2i) depth camera for our object avoidance and real-time mapping.
 

@@ -12,6 +12,14 @@
   <license>TODO</license>
 
   <!-- dependencies -->
+  <depend>geographic_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav2_behavior_tree</depend>
+  <depend>nav2_bringup</depend>
+  <depend>nav2_msgs</depend>
+  <depend>rclpy</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
   <depend>tf_transformations</depend>
 
   <!-- note: these are optional and only for testing -->
