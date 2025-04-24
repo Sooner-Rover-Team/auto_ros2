@@ -14,6 +14,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     time::Duration,
 };
+use tokio::{sync::mpsc::{channel, Sender}, time::sleep};
 
 use ros2_client::{
     log::LogLevel, rosout, AService, Context, Message, Name, ServiceMapping, ServiceTypeName,
@@ -29,9 +30,29 @@ pub struct LightsRequest {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
-    pub flashing: bool, // TODO: add implementation for flashing
+    pub flashing: bool,
 }
 impl Message for LightsRequest {}
+
+impl LightsRequest {
+    pub fn green () -> Self {
+        Self {
+            red: 0,
+            green: 255,
+            blue: 0,
+            flashing: false,
+        }
+    }
+
+    pub fn off() -> Self {
+        Self {
+            red: 0,
+            green: 0,
+            blue: 0,
+            flashing: false,
+        }
+    }
+}
 
 // Struct to hold the response information (a boolean for success)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +60,23 @@ pub struct LightsResponse {
     pub success: bool,
 }
 impl Message for LightsResponse {}
+
+// Alternates requests to turn lights on (green) and off repeatedly
+async fn FlashingLights(mut sender: Sender<LightsRequest>) {
+    loop {
+        // Turns lights green
+        if sender.send(LightsRequest::green()).await.is_err() {
+            break;
+        }
+        sleep(Duration::from_millis(200)).await;
+
+        // Turns lights off
+        if sender.send(LightsRequest::off()).await.is_err() {
+            break;
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
@@ -78,12 +116,42 @@ async fn main() {
         .await
         .expect("Failed to create Rover Controller");
 
-    // Make the node do stuff
+    // Channel to control light state
+    let (sender, mut receiver) = channel::<LightsRequest>(32);
+
+    // Receives color updates and applies them to hardware
+    tokio::spawn({
+        let controller = controller.clone();
+        async move {
+            while let Some(request) = receiver.recv().await {
+                controller.set_lights_rgb(request.red, request.green, request.blue).await.ok();
+            }
+        }
+    });
+
+    // Service handler
+    tokio::spawn({
+        let sender = sender.clone();
+        async move {
+            while let Ok((request, response_tx)) = server.recv().await {
+                if request.flashing {
+                    let sender_clone = sender.clone();
+                    tokio::spawn(async move {
+                        FlashingLights(sender_clone).await;
+                    });
+                } else {
+                    let _ = sender.send(request).await;
+                }
+                
+                let _ = response_tx.send(LightsResponse { success: true });
+            }
+        }
+    });
+
+    // Node does things
     logic::spin(&mut node);
 
-    // Handle requests in the background
-    tokio::task::spawn(logic::request_handler(server, node, controller));
-
+    // Keep main thread alive
     loop {
         tokio::time::sleep(Duration::from_secs(30)).await;
     }
