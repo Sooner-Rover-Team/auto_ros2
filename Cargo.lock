@@ -2871,31 +2871,3 @@ dependencies = [
  "quote",
  "syn 2.0.101",
 ]
-
-[[patch.unused]]
-name = "custom_interfaces"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "custom_interfaces_shim"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "drive_tui"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "lights"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "sensors"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "wheels"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "wheels_node"
-version = "0.1.0"
