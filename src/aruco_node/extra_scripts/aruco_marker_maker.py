@@ -36,8 +36,17 @@ def main(
     marker_distance: Annotated[
         float,
         typer.Argument(
-            help="How far (in meters) away the aruco marker is in the image"
+            help="How far (in meters) away the aruco marker is from the camera in the image"
         ),
+    ],
+    marker_rotation: Annotated[
+        tuple[float, float, float],
+        typer.Argument(
+            help="The rotation of the marker (in degrees) relative to the camera (e.g. angle_x angle_y angle_z)"
+        ),
+    ],
+    image_output: Annotated[
+        str, typer.Argument(help="The path to the generated image")
     ],
 ):
     """
@@ -54,7 +63,16 @@ def main(
         ],
         dtype=np.float32,
     )
-    marker_rvec = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # No marker rotation!
+
+    # Create a rotation vector in Rodrigues form
+    marker_rvec = np.array(marker_rotation, dtype=np.float32)  # Make into numpy array
+    marker_rvec = cv.Rodrigues(np.deg2rad(marker_rvec))[
+        0
+    ]  # Convert rad to degrees and make Rodrigues form
+
+    # Generate ArUco marker image (just to extract the pattern)
+    aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_4X4_50)
+    marker_img = cv.aruco.generateImageMarker(aruco_dict, 1, 100)
 
     # Calculate where the aruco marker corners are in relation to the center of the aruco marker in 3D space
     marker_length = 0.175  # correlates to URC standard marker length in meters
@@ -77,30 +95,31 @@ def main(
 
     # Calculate where the image points for the object points are
     # (i.e. project the 3D points of the aruco marker onto our image)
-    image_points, _ = cv.projectPoints(
+    img_points, _ = cv.projectPoints(
         object_points,
         rvec=marker_rvec,
         tvec=marker_tvec,
         cameraMatrix=camera_matrix,
         distCoeffs=dist_coeffs,
     )
-    image_points = np.int32(image_points).reshape(4, 2)
-    top_left = image_points[3]  # pyright: ignore[reportAny]
-    bottom_right = image_points[1]  # pyright: ignore[reportAny]
+    img_points = img_points.reshape(-1, 2).astype(int)
 
-    # Resize the aruco (shrink or stretch) image based on the calcualed image points
-    marker_image: MatLike = cv.imread("extra_scripts/aruco_markers/aruco_marker_1.png")
-    side_length = bottom_right[0] - top_left[0]  # pyright: ignore[reportAny]
-    marker_image = cv.resize(
-        marker_image,
-        (side_length, side_length),
-    )
+    # Warp the marker image to its projected quadrilateral on the blank image
+    src_pts = np.array([[0, 99], [99, 99], [99, 0], [0, 0]], dtype=np.float32)
+    dst_pts = img_points.astype(np.float32)
+    M = cv.getPerspectiveTransform(src_pts, dst_pts)
+    warped = cv.warpPerspective(marker_img, M, (640, 480))
 
-    # Add the aruco marker to the image
-    image[top_left[1] : bottom_right[1], top_left[0] : bottom_right[0]] = marker_image
+    # Create a mask and overlay the warped marker
+    mask = cv.warpPerspective(np.ones_like(marker_img) * 255, M, (640, 480))
+    mask = cv.cvtColor(mask, cv.COLOR_GRAY2BGR)
+    warped = cv.cvtColor(warped, cv.COLOR_GRAY2BGR)
+
+    # Blend into original image
+    image = np.where(mask == 255, warped, image)
 
     _ = cv.imwrite(
-        f"aruco_marker_dist_{str(marker_distance).replace('.', '_')}m.jpg",
+        image_output,
         image,
     )
 
