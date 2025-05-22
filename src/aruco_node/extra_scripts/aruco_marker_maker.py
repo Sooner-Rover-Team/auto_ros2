@@ -116,7 +116,7 @@ def main(
     warped = cv.cvtColor(warped, cv.COLOR_GRAY2BGR)
 
     # Blend into original image
-    image = np.where(mask == 255, warped, image)
+    image = np.where(mask == 255, warped, image)  # pyright: ignore[reportAny]
 
     _ = cv.imwrite(
         image_output,
