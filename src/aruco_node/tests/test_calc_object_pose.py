@@ -38,7 +38,7 @@ def sim_aruco_rot_and_images() -> list[tuple[tuple[float, float, float], MatLike
     directory_path = "tests/sim_rot_aruco_images"
     image_filenames = os.listdir(directory_path)
 
-    rot_and_images = []
+    rot_and_images: list[tuple[tuple[float, float, float], MatLike]] = []
     for image_filename in image_filenames:
         # Get the rotations from the filename
         angles = image_filename.split("rot_")[1].split(".")[0].split("_")
@@ -48,12 +48,12 @@ def sim_aruco_rot_and_images() -> list[tuple[tuple[float, float, float], MatLike
 
         # Read the image
         image = cv.imread(f"{directory_path}/{image_filename}")
-        rot_and_image = (angles, image)
+        rot_and_image: tuple[tuple[float, float, float], MatLike] = (angles, image)
         rot_and_images.append(rot_and_image)
 
     # Return the distance that the aruco marker is from the image and the image
     # sorted by distance
-    return sorted(rot_and_images, key=lambda dist_image: dist_image[0])  # pyright: ignore[ reportReturnType]
+    return sorted(rot_and_images, key=lambda dist_image: dist_image[0])
 
 
 @pytest.fixture
