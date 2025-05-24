@@ -11,6 +11,9 @@
 
     <license>TODO</license>
 
+    <!-- we need to build this shim pkg before any other Rust nodes! -->
+    <build_depend>custom_interfaces_shim</build_depend>
+
     <export>
         <build_type>ament_cargo</build_type>
     </export>

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" ?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
     <name>drive_tui</name>
@@ -8,6 +8,9 @@
     <maintainer email="contact@barretts.club">Barrett Ray</maintainer>
 
     <license>MIT</license>
+
+    <!-- we need to build this shim pkg before any other Rust nodes! -->
+    <build_depend>custom_interfaces_shim</build_depend>
 
     <export>
         <build_type>ament_cargo</build_type>

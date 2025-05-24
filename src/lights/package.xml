@@ -11,6 +11,8 @@
 
     <license>TODO</license>
 
+    <build_depend>custom_interfaces_shim</build_depend>
+
     <export>
         <build_type>ament_cargo</build_type>
     </export>

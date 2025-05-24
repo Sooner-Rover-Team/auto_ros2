@@ -9,7 +9,6 @@ path = "src/main.rs"
 
 [dependencies]
 camino = "1.1"
-ros2-client = "0.8.0"
 serde = "1.0.217"
 feedback = { git = "https://github.com/onkoe/feedback", version = "0.3.0", default-features = false }
 soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "1.0.2", default-features = false }
@@ -26,3 +25,8 @@ tokio-stream = "0.1.17"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 uuid = { version = "1.13.1", features = ["v4"] }
+safe_drive = { version = "0.4.3", features = ["humble"] }
+async-hid = { version = "0.4.0", features = ["tokio"], default-features = false }
+futures-lite = "2.6.0"
+futures = { version = "0.3.31", default-features = false, features = ["alloc", "async-await", "std"] }
+zerocopy = { version = "0.8.25", features = ["derive", "simd"] }

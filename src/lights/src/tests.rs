@@ -11,10 +11,6 @@ use std::{
 
 use feedback::send::RoverController;
 use futures_lite::FutureExt;
-use ros2_client::{
-    log::LogLevel, rosout, AService, Context, Name, NodeName, NodeOptions, ServiceMapping,
-    ServiceTypeName,
-};
 use tokio::time::timeout;
 
 use crate::{logic, LightsRequest, LightsResponse};

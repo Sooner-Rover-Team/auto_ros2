@@ -1,0 +1,7 @@
+[package]
+name = "custom_interfaces_shim"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+safe_drive_msg = "0.2.6"
