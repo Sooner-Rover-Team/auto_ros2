@@ -4,13 +4,15 @@
 //! other nodes through various topics.
 
 use core::net::{IpAddr, Ipv4Addr};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use camino::Utf8PathBuf;
-use ros2_client::{log::LogLevel, rosout, Context};
+use safe_drive::{context::Context, logger::Logger, pr_info};
 
 mod logic;
 mod msg;
+
+const SENSORS_NODE_NAME: &str = "sensors_node";
 
 #[tokio::main(flavor = "multi_thread")]
 #[tracing::instrument]
@@ -22,29 +24,23 @@ async fn main() {
         )
         .init();
 
+    // create a context
     let ctx = Context::new().expect("init ros 2 context");
 
-    // create the autonomous node
-    let mut sensors_node = logic::create_node(&ctx);
-    rosout!(
-        sensors_node,
-        LogLevel::Info,
-        "sensors node is now starting!"
-    );
+    // create the sensors node
+    let sensors_node = ctx
+        .create_node(SENSORS_NODE_NAME, Some("/sensors"), Default::default())
+        .inspect_err(|e| tracing::error!("Failed to create `{SENSORS_NODE_NAME}`! err: {e}"))
+        .expect("node creation");
 
-    // make the node do stuff
-    logic::spin(&mut sensors_node);
+    // create a logger
+    let logger = Arc::new(Logger::new(SENSORS_NODE_NAME));
+    pr_info!(logger, "The `{SENSORS_NODE_NAME}` is now online!");
 
     // start all our topics + publishers
-    //
-    // TODO: maybe fill `sensor_setup` using params?
-    let logging_handle = sensors_node.logging_handle();
-    logic::spawn_sensor_publisher_tasks(SensorSetup::default(), sensors_node).await;
-    rosout!(
-        logging_handle,
-        LogLevel::Info,
-        "spawned all sensor info publishers"
-    );
+    logic::spawn_sensor_publisher_tasks(SensorSetup::default(), sensors_node, Arc::clone(&logger))
+        .await;
+    pr_info!(logger, "Spawned all sensor info publishers.");
 
     loop {
         tokio::time::sleep(Duration::from_millis(20_000)).await;

@@ -4,9 +4,7 @@
     <name>sensors</name>
     <version>0.1.0</version>
     <description>Grabs sensor data from the Rover.</description>
-
     <maintainer email="contact@barretts.club">Barrett Ray</maintainer>
-
     <license>TODO</license>
 
     <export>
