@@ -5,6 +5,7 @@ For more information, see `/docs/hardware/sensors.md`.
 """
 
 from launch import LaunchDescription
+from launch.frontend.parse_substitution import get_package_share_directory
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import (
     Node,
@@ -19,6 +20,8 @@ _CONTAINER_NAME: str = "zed_conversion_container"
 
 
 def generate_launch_description() -> LaunchDescription:
+    zed_package_path: str = get_package_share_directory("zed")
+
     # these two nodes capture images from the left + right camera respectively.
     #
     # it's separated like that on the hardware, so we do need *two* nodes.
@@ -29,22 +32,15 @@ def generate_launch_description() -> LaunchDescription:
         package="v4l2_camera",
         executable="v4l2_camera_node",
         remappings=[
-            # format: (<to>, <from>), ...
-            ("/sensors/depth_image/left_image_raw", "image_raw"),
-            ("/sensors/depth_image/left_camera_info", "camera_info"),
+            ("image_raw", "/sensors/depth_image/left_image_raw"),
+            ("camera_info", "/sensors/depth_image/left_camera_info"),
         ],
         parameters=[
             PathJoinSubstitution(
                 [FindPackageShare("zed"), "params", "v4l2_camera.yaml"]
             ),
             {
-                "camera_info_url": PathJoinSubstitution(
-                    [
-                        FindPackageShare("zed"),
-                        "params",
-                        "left_camera_info.yaml",
-                    ]
-                )
+                "camera_info_url": f"file://{zed_package_path}/params/left_camera_info_hd.yaml"
             },
         ],
     )
@@ -53,21 +49,15 @@ def generate_launch_description() -> LaunchDescription:
         package="v4l2_camera",
         executable="v4l2_camera_node",
         remappings=[
-            ("/sensors/depth_image/right_image_raw", "image_raw"),
-            ("/sensors/depth_image/right_camera_info", "camera_info"),
+            ("image_raw", "/sensors/depth_image/right_image_raw"),
+            ("camera_info", "/sensors/depth_image/right_camera_info"),
         ],
         parameters=[
             PathJoinSubstitution(
                 [FindPackageShare("zed"), "params", "v4l2_camera.yaml"],
             ),
             {
-                "camera_info_url": PathJoinSubstitution(
-                    [
-                        FindPackageShare("zed"),
-                        "params",
-                        "right_camera_info.yaml",
-                    ]
-                )
+                "camera_info_url": f"file://{zed_package_path}/params/right_camera_info_hd.yaml"
             },
         ],
     )
@@ -80,9 +70,9 @@ def generate_launch_description() -> LaunchDescription:
         package="image_proc",
         plugin="image_proc::RectifyNode",
         remappings=[
-            ("/sensors/depth_image/left_image_raw", "image"),
-            ("/sensors/depth_image/left_camera_info", "camera_info"),
-            ("/sensors/depth_image/left_image_rect", "image_rect"),
+            ("image", "/sensors/depth_image/left_image_raw"),
+            ("camera_info", "/sensors/depth_image/left_camera_info"),
+            ("image_rect", "/sensors/depth_image/left_image_rect"),
         ],
     )
     right_rectifier: ComposableNode = ComposableNode(
@@ -90,9 +80,9 @@ def generate_launch_description() -> LaunchDescription:
         package="image_proc",
         plugin="image_proc::RectifyNode",
         remappings=[
-            ("/sensors/depth_image/right_image_raw", "image"),
-            ("/sensors/depth_image/right_camera_info", "camera_info"),
-            ("/sensors/depth_image/right_image_rect", "image_rect"),
+            ("image", "/sensors/depth_image/right_image_raw"),
+            ("camera_info", "/sensors/depth_image/right_camera_info"),
+            ("image_rect", "/sensors/depth_image/right_image_rect"),
         ],
     )
 
@@ -111,13 +101,13 @@ def generate_launch_description() -> LaunchDescription:
         plugin="stereo_image_proc::DisparityNode",
         remappings=[
             # the node subscribes to these topics
-            ("/sensors/depth_image/left_camera_info", "left/camera_info"),
-            ("/sensors/depth_image/left_image_rect", "left/image_rect"),
-            ("/sensors/depth_image/right_camera_info", "right/camera_info"),
-            ("/sensors/depth_image/right_image_rect", "right/image_rect"),
+            ("left/camera_info", "/sensors/depth_image/left_camera_info"),
+            ("left/image_rect", "/sensors/depth_image/left_image_rect"),
+            ("right/camera_info", "/sensors/depth_image/right_camera_info"),
+            ("right/image_rect", "/sensors/depth_image/right_image_rect"),
             #
             # it publishes the disparity onto this topic
-            ("/sensors/depth_image/disparity", "disparity"),
+            ("disparity", "/sensors/depth_image/disparity"),
         ],
     )
 
@@ -129,16 +119,16 @@ def generate_launch_description() -> LaunchDescription:
         plugin="stereo_image_proc::PointCloudNode",
         remappings=[
             # subscriptions
-            ("/sensors/depth_image/disparity", "disparity"),
-            ("/sensors/depth_image/left_camera_info", "left/camera_info"),
-            ("/sensors/depth_image/left_image_rect", "left/image_rect_color"),
-            ("/sensors/depth_image/right_camera_info", "right/camera_info"),
+            ("disparity", "/sensors/depth_image/disparity"),
+            ("left/camera_info", "/sensors/depth_image/left_camera_info"),
+            ("left/image_rect_color", "/sensors/depth_image/left_image_rect"),
+            ("right/camera_info", "/sensors/depth_image/right_camera_info"),
             (
-                "/sensors/depth_image/right_image_rect",
                 "right/image_rect_color",
+                "/sensors/depth_image/right_image_rect",
             ),
             # it publishes the point cloud onto this topic
-            ("/sensors/depth_image/point_cloud", "points2"),
+            ("points2", "/sensors/depth_image/point_cloud"),
         ],
     )
 
