@@ -8,7 +8,7 @@
     #
     # for more information, see:
     # https://docs.kernel.org/userspace-api/media/v4l/open.html#v4l2-device-node-naming
-    video_device: "/dev/TODO_LEFT" # TODO: assign permanent usb port + get path
+    video_device: "/dev/v4l/by-id/usb-Technologies__Inc._ZED_2i_OV0001-video-index0"
 
     # resolution in format: [width, height]
     image_size: [1280, 720] # TODO: settle on (and document) camera resolution
@@ -31,7 +31,7 @@
 
 /v4l2_depth_image_right:
   ros__parameters:
-    video_device: "/dev/TODO_RIGHT"
+    video_device: "/dev/v4l/by-id/usb-Technologies__Inc._ZED_2i_OV0001-video-index1"
     image_size: [1280, 720]
     use_image_transport: false
     publish_rate: 15
