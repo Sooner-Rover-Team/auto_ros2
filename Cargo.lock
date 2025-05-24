@@ -440,8 +440,8 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "feedback"
-version = "0.3.0"
-source = "git+https://github.com/onkoe/feedback#d47c5d28976fa09dc6ef394d612903ea3987dbec"
+version = "0.3.1"
+source = "git+https://github.com/onkoe/feedback#67b4a4b6f120c82a30eb843bc8cf9c2adb7dbd78"
 dependencies = [
  "bytemuck",
  "futures-lite",
@@ -2354,4 +2354,3 @@ dependencies = [
  "quote",
  "syn 2.0.100",
 ]
-
