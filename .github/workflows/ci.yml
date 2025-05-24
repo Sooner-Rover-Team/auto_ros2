@@ -5,7 +5,7 @@ jobs:
   check-ros2-workspace:
     # same as jetson :p
     runs-on: ubuntu-22.04
-    needs: [python, rust, uv-sync-on-aarch64]
+    needs: [python, uv-sync-on-aarch64]
     container:
       image: osrf/ros:humble-simulation
     steps:
@@ -130,6 +130,14 @@ jobs:
           . install/local_setup.bash
           uv tool run basedpyright src/
 
+      # run rust lints
+      - name: Lint with Clippy (Rust)
+        run: cargo clippy --workspace
+
+      # run the formatter
+      - name: Format with `rustfmt` (Rust)
+        run: cargo fmt --check
+
       - name: Run ROS 2 tests
         shell: bash
         run: |
@@ -187,29 +195,6 @@ jobs:
       # check formatting
       - name: Format with Ruff (Python)
         run: uv tool run ruff format --check
-
-  rust:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - run: sudo apt-get update && sudo apt-get install -y curl && curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
-
-      - uses: moonrepo/setup-rust@v1
-        with:
-          components: clippy, rustfmt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # run rust lints
-      - name: Lint with Clippy (Rust)
-        run: cargo clippy --workspace
-
-      # run the formatter
-      - name: Format with `rustfmt` (Rust)
-        run: cargo fmt --check
 
   # Checks that grabbing the virtual environment works properly on `aarch64`,
   # as we need that on the Rover and for any computers (like modern Macs)...
