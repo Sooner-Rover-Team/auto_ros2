@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import rclpy
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
-from geometry_msgs.msg import Point, Pose, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped, Twist
 from loguru import logger as llogger
 from nav2_simple_commander.robot_navigator import BasicNavigator
 from rcl_interfaces.msg import ParameterType
@@ -180,7 +180,7 @@ class NavigatorNode(Node):
 
         # create wheels publisher
         self._cmd_vel_publisher = self.create_publisher(
-            msg_type=Pose,
+            msg_type=Twist,
             topic="/cmd_vel",
             qos_profile=RELIABLE_QOS_PROFILE,
         )
@@ -284,11 +284,11 @@ class NavigatorNode(Node):
         Note that Nav2 does this automatically - this is just a sanity check
         and safety measure.
         """
-        # an empty pose message will stop the wheels
-        zero_speed_pose: Pose = Pose()
+        # an empty twist message will stop the wheels
+        zero_speed_twist: Twist = Twist()
 
         # publish it!
-        self._cmd_vel_publisher.publish(zero_speed_pose)
+        self._cmd_vel_publisher.publish(zero_speed_twist)
         _ = self.get_logger().info("Wheels stopped!")
 
     async def _go_to_coordinate(

@@ -55,8 +55,8 @@ def generate_launch_description():
     START_LON: float = -110.795204
 
     # add some coordinate to go to...
-    latitude = START_LAT + 0.0002
-    longitude = START_LON + 0.0002
+    latitude: float = START_LAT - 0.002  # 0.0002
+    longitude: float = START_LON - 0.002  # 0.0003
 
     mode_int: int = NavigationMode.ARUCO.value
 

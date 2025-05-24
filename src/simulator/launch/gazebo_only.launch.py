@@ -5,7 +5,6 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
-    SetEnvironmentVariable,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
@@ -126,7 +125,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "use_sim_time",
             ),
-            SetEnvironmentVariable(name="LIBGL_ALWAYS_SOFTWARE", value="1"),
+            # SetEnvironmentVariable(name="LIBGL_ALWAYS_SOFTWARE", value="1"),
             DeclareLaunchArgument(
                 name="run_headless",
                 default_value="False",

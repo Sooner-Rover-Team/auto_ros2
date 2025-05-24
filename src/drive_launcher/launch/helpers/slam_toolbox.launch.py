@@ -1,6 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -10,8 +9,6 @@ def generate_launch_description() -> LaunchDescription:
     """
     starts the `slam_toolbox` mapping node (to get the `/map` topic)
     """
-    pkg_slam_toolbox: FindPackageShare = FindPackageShare("slam_toolbox")
-
     use_sim_time: LaunchConfiguration = LaunchConfiguration(
         "use_sim_time", default="false"
     )
@@ -20,23 +17,15 @@ def generate_launch_description() -> LaunchDescription:
     # `camera_depth_frame`
     camera_chain: Node = _make_camera_depth_frame_link_node(use_sim_time)
 
-    slam_toolbox = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [
-                PathJoinSubstitution(
-                    [
-                        pkg_slam_toolbox,
-                        "launch",
-                        "online_async_launch.py",
-                    ]
-                )
-            ]
-        ),
-        launch_arguments=[
-            ("use_sim_time", use_sim_time),
-            ("slam_params_file", _get_conf()),
-            ("use_lifecycle_manager", "true"),
+    slam_toolbox = Node(
+        package="slam_toolbox",
+        executable="async_slam_toolbox_node",
+        name="slam_toolbox",
+        parameters=[
+            _get_conf(),
+            {"use_sim_time": use_sim_time},
         ],
+        output="screen",
     )
 
     return LaunchDescription(

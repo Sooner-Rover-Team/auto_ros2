@@ -16,6 +16,10 @@ For our color camera, we use the [See3CAM_24CUG](https://www.e-consystems.com/in
 
 However, its a fixed focus camera, and no approximation of its range was given in its specification sheet. Please be wary of this situation during testing and development, and don't be afraid to question the hardware to look into a new lens.
 
+### Mount
+
+The camera is mounted 0.5782 meters above the bottom of the ebox.
+
 ## Depth Camera
 
 - connection: USB 3.1

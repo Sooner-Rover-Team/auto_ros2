@@ -1,25 +1,25 @@
 slam_toolbox:
   ros__parameters:
-    # make the queue size muuuuch bigger
-    # TODO(bray): can u... even do this for a tf frame???
-    # qos_overrides./sensors/depth_image/camera_info.publisher.depth: 100
-
     # tell the program to actually perform mapping
     mode: mapping
 
     # toggle for better debugging
     debug_logging: false
 
-    # configure slam_tb to publish on `/tf` topic
-    publish_tf: true # pub map frame
-    publish_tf_rate: 20.0 # ...20 times a second
-    transform_publish_period: 0.02 # publish the odom (unit is seconds)
+    # tell `slam_tb` to avoid publishing the map
+    # publish_tf: false
+    # transform_publish_period: -1.0 # IMPORTANT!
+
+    # publish the map
+    publish_tf: true
+    transform_publish_period: 0.02
     transform_timeout: 0.2
     tf_buffer_duration: 30.0
     stack_size_to_use: 40000000
     scan_buffer_size: 50 # we need this to avoid running outta buf space
     throttle_scans: 5 # only read every `n`th scan.
     minimum_time_interval: 0.3 # wait n seconds before processing again
+    use_map_saver: false
 
     # define tf2 frames
     odom_frame: odom
@@ -35,7 +35,6 @@ slam_toolbox:
     ceres_preconditioner: SCHUR_JACOBI
     ceres_trust_strategy: LEVENBERG_MARQUARDT
     ceres_dogleg_type: TRADITIONAL_DOGLEG
-    ceres_loss_function: None
 
     # other conf.
     map_update_interval: 1.0
@@ -45,7 +44,7 @@ slam_toolbox:
     z_rand: 0.05
     sigma_hit: 0.2
 
-    use_scan_matching: false
+    use_scan_matching: true
     use_scan_barycenter: true
     minimum_travel_distance: 0.01
     minimum_travel_heading: 0.001

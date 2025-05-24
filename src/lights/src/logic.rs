@@ -80,7 +80,7 @@ pub async fn request_handler(
 pub fn create_node(ctx: &Context) -> Node {
     // Create the lights node
     ctx.new_node(
-        NodeName::new("/rustdds", "lights_node").expect("node naming"),
+        NodeName::new("/", "lights_node").expect("node naming"),
         NodeOptions::new().enable_rosout(true),
     )
     .expect("node creation")

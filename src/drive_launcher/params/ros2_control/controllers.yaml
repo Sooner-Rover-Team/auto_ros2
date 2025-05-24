@@ -1,27 +1,9 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    update_rate: 15
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
-
-left_wheels_velocity_controller:
-  ros__parameters:
-    type: velocity_controllers/JointGroupVelocityController
-    joints:
-      - left_front_wheel_joint
-      - left_middle_wheel_joint
-      - left_back_wheel_joint
-    state_publish_rate: 50
-
-right_wheels_velocity_controller:
-  ros__parameters:
-    type: velocity_controllers/JointGroupVelocityController
-    joints:
-      - right_front_wheel_joint
-      - right_middle_wheel_joint
-      - right_back_wheel_joint
-    state_publish_rate: 50
 
 diff_drive_controller:
   ros__parameters:
@@ -36,7 +18,15 @@ diff_drive_controller:
       - right_back_wheel_joint
     wheel_separation: 0.574
     wheel_radius: 0.08
-    publish_rate: 50.0
+
+    # we turn this off such that the `ekf` odom node will publish this frame
+    # instead.
+    #
+    # however, since it's ekf, and properly configured, it'll also take our
+    # odometry topic into account :D
+    enable_odom_tf: false
+
+    publish_rate: 10.0
     use_stamped_vel: false
 
     joint_state_broadcaster:

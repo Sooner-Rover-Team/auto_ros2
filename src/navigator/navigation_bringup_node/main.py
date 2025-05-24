@@ -14,7 +14,7 @@ from typing_extensions import override
 # the primary qos here is reliable - maps are sent reliably.
 QOS_PROFILE: QoSProfile = QoSPresetProfiles.SERVICES_DEFAULT.value
 
-MOVEMENT_SPEED: float = -0.05
+MOVEMENT_SPEED: float = -0.2
 """How fast we'll move backward."""
 
 

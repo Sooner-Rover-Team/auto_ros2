@@ -20,15 +20,13 @@
     debug: false
     debug_out_file: rl_ekf_filter_node_odom.log
 
-    # configure the imu to only give heading for local usage
+    # configure imu for local usage
     imu0: /sensors/imu
-    imu0_config:
-      [
+    imu0_config: [
         false,
         false,
         false,
-        false,
-        false,
+        true,
         true,
         false,
         false,
@@ -39,7 +37,37 @@
         false,
         false,
         false,
+        # don't use acceleration on `z` axis.
+        #
+        # make sure to toggle this on with `two_d_mode: false`..!
+        false,
       ]
     imu0_differential: false
     imu0_queue_size: 50
+    # `false` if the imu reports "raw" acceleration.
+    #
+    # that means `az` will include gravity
     imu0_remove_gravitational_acceleration: true
+
+    odom0: /diff_drive_controller/odom
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+    odom0_config:
+      [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+      ]

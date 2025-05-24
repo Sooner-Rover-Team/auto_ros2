@@ -1,13 +1,17 @@
 [package]
-name = "sensors_node"
+name = "sensors"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "sensors_node"
+path = "src/main.rs"
 
 [dependencies]
 camino = "1.1"
 ros2-client = "0.8.0"
 serde = "1.0.217"
-feedback = { git = "https://github.com/onkoe/feedback", version = "0.2.4", default-features = false }
+feedback = { git = "https://github.com/onkoe/feedback", version = "0.3.0", default-features = false }
 soro_gps = { git = "https://github.com/Sooner-Rover-Team/gps-rs", version = "1.0.2", default-features = false }
 tokio = { version = "1.42.0", features = [
     "macros",

@@ -1,10 +1,14 @@
 [package]
-name = "lights_node"
+name = "lights"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "lights_node"
+path = "src/main.rs"
+
 [dependencies]
-feedback = { git = "https://github.com/onkoe/feedback", version = "0.2.4", default-features = false }
+feedback = { git = "https://github.com/onkoe/feedback", version = "0.3.0", default-features = false }
 futures-lite = "2.6.0"
 log4rs = "1.3.0"
 ros2-client = { version = "0.8.0" }

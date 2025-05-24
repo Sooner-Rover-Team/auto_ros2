@@ -1,0 +1,10 @@
+[project]
+name = "manual_control"
+description = "Utilities for controlling the Rover."
+version = "1.0.0"
+
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pygame>=2.6.1",
+]

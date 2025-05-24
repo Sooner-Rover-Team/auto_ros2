@@ -14,21 +14,29 @@
           durability: volatile
 
     # timing
-    frequency: 30.0
-    delay: 3.0
+    frequency: 5.0
+    delay: 0.2
 
     # behavior
     enable: true
-    magnetic_declination_radians: 0.0
+    # ...note: this is positive in both Utah and Oklahoma.
+    #
+    # Norman, OK is closer to ~64 deg., while Hanksville, UT is around ~10 deg.
+    #
+    # make sure to convert to radians when using another value!
+    # magnetic_declination_radians: 0.1745329
+    # ...an offset makes the imu zero (when facing east).
+    #
+    # our imu can use `0.0`, since it works like that naturally :D
     yaw_offset: 0.0
-    zero_altitude: true
+    zero_altitude: false
     use_odometry_yaw: false
 
     # node rules
     #
-    # ... this puts the utm frame in the chain. we need it to translate
-    # ... coordinates into map-local values
-    broadcast_cartesian_transform: true
+    # ... when `true`, this puts the utm frame in the chain. we need it to
+    # translate coordinates into map-local values
+    broadcast_cartesian_transform: false
     broadcast_cartesian_transform_as_parent_frame: false
     publish_filtered_gps: true
     wait_for_datum: false
@@ -38,3 +46,6 @@
     odom_frame: odom
     base_link_frame: base_link
     earth_frame: earth
+
+    # we'll get gps messages with *this* frame_id:
+    frame_id: gps_link

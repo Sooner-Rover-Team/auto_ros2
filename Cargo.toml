@@ -1,11 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "src/lights_node",
-    "src/wheels_node",
-    "src/sensors_node",
-    "src/drive_tui",
-]
+members = ["src/lights", "src/wheels", "src/sensors", "src/drive_tui"]
 
 [patch.crates-io]
 ros2-client = { git = "https://github.com/Sooner-Rover-Team/ros2-client", rev = "8ca2f85" }

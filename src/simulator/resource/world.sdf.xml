@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.8">
-    <world name="car_world">
+    <world name="flat_rover_test_world">
         <physics name="default_physics" default="true" type="ode">
             <max_step_size>0.001</max_step_size>
             <real_time_factor>1.0</real_time_factor>
@@ -74,7 +74,8 @@
                 <collision name="collision">
                     <geometry>
                         <plane>
-                        <normal>0 0 1</normal>
+                            <normal>0 0 1</normal>
+                            <size>2000 2000</size>
                         </plane>
                     </geometry>
 
@@ -90,8 +91,8 @@
                 <visual name="visual">
                 <geometry>
                     <plane>
-                    <normal>0 0 1</normal>
-                    <size>100 100</size>
+                        <normal>0 0 1</normal>
+                        <size>2000 2000</size>
                     </plane>
                 </geometry>
                 <material>

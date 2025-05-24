@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema" ?>
+<package format="3">
+    <name>manual_control</name>
+    <version>1.0.0</version>
+    <description>Utilities for controlling the Rover.</description>
+
+    <!-- if you make changes, please add your name here! -->
+    <maintainer email="contact@barretts.club">Barrett Ray</maintainer>
+
+    <license>MIT</license>
+
+    <!-- you can add new dependencies here! -->
+    <depend>geometry_msgs</depend>
+    <depend>python3-pytest</depend>
+    <depend>rclpy</depend>
+    <depend>std_msgs</depend>
+
+    <!--
+    unless you're making some crazy changes to the build system, please
+    keep this as-is... ;D
+    -->
+    <export>
+        <build_type>ament_python</build_type>
+    </export>
+</package>
