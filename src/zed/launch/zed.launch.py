@@ -167,7 +167,6 @@ def generate_launch_description() -> LaunchDescription:
         package="rclcpp_components",
         executable="component_container",
         composable_node_descriptions=composable_nodes,
-        extra_arguments=[{"use_intra_process_comms": True}],
         output="screen",
     )
 
