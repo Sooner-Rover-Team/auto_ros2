@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
-<package>
+<package format="3">
     <name>zed</name>
     <version>0.0.0</version>
     <description>Launch files for the Zed 2i depth camera.</description>
@@ -8,6 +8,11 @@
     <license>MIT</license>
 
     <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+    <depend>image_proc</depend>
+    <depend>pointcloud_to_laserscan</depend>
+    <depend>stereo_image_proc</depend>
+    <depend>v4l2_camera</depend>
 
     <export>
       <build_type>ament_cmake</build_type>
