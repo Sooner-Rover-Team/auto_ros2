@@ -1,0 +1,31 @@
+/v4l2_depth_image_left:
+  ros__parameters:
+    # we can differentiate video devices via their permenant USB identifier,
+    # which are located in this folder: `/dev/v4l/by-id`.
+    #
+    # however, if someone were to change the port a camera was connected to,
+    # things would end poorly.
+    #
+    # for more information, see:
+    # https://docs.kernel.org/userspace-api/media/v4l/open.html#v4l2-device-node-naming
+    video_device: "/dev/v4l/TODO" # TODO: set the correct device id
+
+    # resolution in format: [width, height]
+    image_size: [1920, 10] # TODO: settle on (and document) camera resolution
+
+    # TODO: fine-tune the v4l2 camera parameters.
+    #
+    # see: https://docs.ros.org/en/humble/p/v4l2_camera/#parameters
+
+    # whether to run + use a compression algorithm node
+    use_image_transport: false
+
+    # refresh the camera <n> times per second
+    publish_rate: 30
+
+    # publish sensor info with "best effort" reliability.
+    #
+    # this makes depth sensor data faster and allows us to keep up when under
+    # high computational load
+    use_sensor_data_qos: true
+

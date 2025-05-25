@@ -1,0 +1,3 @@
+/point_cloud_depth_image:
+  ros__parameters:
+    use_color: true
