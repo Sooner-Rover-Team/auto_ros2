@@ -82,13 +82,13 @@ async fn service_server_task(
     controller: Arc<RoverController>,
 ) {
     // make a variable that lets us say when to flash the lights!
-    let is_flashing = Arc::new(RwLock::new(false));
+    let is_flashing: Arc<RwLock<Option<Led>>> = Arc::new(RwLock::new(None));
 
     // we'll spawn a background task that flashes the lights until we ask it
     // to stop!
     let logger_clone: Arc<Logger> = Arc::clone(&logger);
     let controller_clone: Arc<RoverController> = Arc::clone(&controller);
-    let is_flashing_clone: Arc<RwLock<bool>> = Arc::clone(&is_flashing);
+    let is_flashing_clone: Arc<RwLock<Option<Led>>> = Arc::clone(&is_flashing);
     _ = tokio::task::spawn(start_flash(
         logger_clone,
         controller_clone,
@@ -114,25 +114,25 @@ async fn service_server_task(
             }
         };
 
-        // if `flashing` is `true` in the request, we'll tell the other task to
-        // start flashing.
-        //
-        // if it's `false`, we'll ask it to stop
-        if request.flashing {
-            *is_flashing.write().await = true;
-            pr_debug!(logger, "Turned flashing lights on!");
-        } else if !*is_flashing.read().await {
-            // ^^ only turn off if not already off
-            *is_flashing.write().await = false;
-            pr_debug!(logger, "Turned flashing lights off.");
-        }
-
         // make a new RGB value with the request's color
         let led = Led {
             red: request.red,
             green: request.green,
             blue: request.blue,
         };
+
+        // if `flashing` is `true` in the request, we'll tell the other task to
+        // start flashing.
+        //
+        // if it's `false`, we'll ask it to stop
+        if request.flashing {
+            *is_flashing.write().await = Some(led);
+            pr_debug!(logger, "Turned flashing lights on!");
+        } else if is_flashing.read().await.is_some() {
+            // ^^ only turn off if not already off
+            *is_flashing.write().await = None;
+            pr_debug!(logger, "Turned flashing lights off.");
+        }
 
         // try sending the LED color to the microcontroller
         let success = match controller.send_led(&led).await {
@@ -176,11 +176,6 @@ async fn service_server_task(
 }
 
 // constants for flashing Autonomous LED
-const GREEN: Led = Led {
-    red: 0,
-    green: 255,
-    blue: 0,
-};
 const OFF: Led = Led {
     red: 0,
     green: 0,
@@ -191,29 +186,44 @@ const OFF: Led = Led {
 pub async fn start_flash(
     logger: Arc<Logger>,
     controller: Arc<RoverController>,
-    is_flashing: Arc<RwLock<bool>>,
+    is_flashing: Arc<RwLock<Option<Led>>>,
 ) {
     loop {
         // if we're not flashing the lights right now, we'll sleep to save
         // processing power
-        if !*is_flashing.read().await {
-            // nothing yet - let's keep sleeping
-            //
-            // arbitrary number, feel free to change!
+        let Some(led) = *is_flashing.read().await else {
             sleep(Duration::from_millis(100)).await;
             continue;
-        }
+        };
 
         // we're being asked to flash the lights! let's keep doing it until
         // the other thread says to stop...
         //
-        while *is_flashing.read().await {
+        loop {
+            // note: this is in a block for a reason!
+            //
+            // it prevents us from holding on to the lock for too long
+            {
+                if is_flashing.read().await.is_none() {
+                    break;
+                }
+            }
+
             // turn on for 200ms
             _ = controller
-                .send_led(&GREEN)
+                .send_led(&led)
                 .await
                 .inspect_err(|e| pr_error!(logger, "Failed to send lights! err: {e}"));
             sleep(Duration::from_millis(200)).await;
+
+            // check again to avoid being slower than the other task.
+            //
+            // without this line, we'll usually:
+            // - be told to start flashing
+            // - then asked to stop flashing
+            if is_flashing.read().await.is_none() {
+                break;
+            }
 
             // turn off for 200ms
             _ = controller
