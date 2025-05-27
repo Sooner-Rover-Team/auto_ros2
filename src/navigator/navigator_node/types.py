@@ -10,18 +10,6 @@ class NavigationMode(Enum):
     OBJECT_DETECTION = 2
 
 
-class GoToCoordinateReason(Enum):
-    """
-    The 'reason' we're going to a coordinate.
-
-    As an argument to `go_to_coordinate`, this type allows it to use the correct
-    stopping distance.
-    """
-
-    GPS = 0
-    ARUCO = 1
-
-
 @dataclass(kw_only=True)
 class NavigationParameters:
     coord: GeoPoint
