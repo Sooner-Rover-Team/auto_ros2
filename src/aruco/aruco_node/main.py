@@ -9,10 +9,12 @@ import rclpy
 # Used to convert OpenCV Mat type to ROS Image type
 # NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
 import rclpy.subscription
+from builtin_interfaces.msg import Time
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped
 from loguru import logger as llogger
+from numpy.typing import NDArray
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.publisher import Publisher
@@ -22,7 +24,10 @@ from scipy.spatial.transform import (
 from sensor_msgs.msg import Image as RosImage
 from typing_extensions import override
 
+from src.aruco.aruco_node.types import FoundMarkerInformation
+
 from .aruco_dict_map import aruco_dict_map
+from .utils import calc_object_pose
 
 
 @dataclass(kw_only=True)
@@ -44,6 +49,9 @@ class ArucoNode(Node):
     manages us!
     </b>
     """
+
+    _found_marker_info: FoundMarkerInformation = FoundMarkerInformation()
+    """Information about what markers we've found."""
 
     camera_config_file: str
     """Filename of the config file."""
@@ -93,7 +101,7 @@ class ArucoNode(Node):
                 "camera_config_file",
                 "cam.yml",
                 ParameterDescriptor(
-                    description="The camera config .yml file that contains camera matrix, distance coefficients, and reprojection error",
+                    description="The camera config (YAML file) that contains camera matrix, distance coefficients, and reprojection error",
                     read_only=True,
                 ),
             )
@@ -138,12 +146,12 @@ class ArucoNode(Node):
         (self.camera_mat, self.dist_coeffs, self.rep_error) = (
             self.read_camera_config_file()
         )
-        _ = self.get_logger().debug(
-            "Finished reading calibration information for camera"
-        )
+        _ = self.get_logger().debug("Read calibration information for camera.")
 
-        # Aruco detector configuration
-        self.detector_params = aruco.DetectorParameters()  # TODO: Look into this
+        # ArUco detector configuration
+        #
+        # TODO: look into this
+        self.detector_params = aruco.DetectorParameters()
         self.tracker = aruco.ArucoDetector(
             aruco.getPredefinedDictionary(aruco_dict_map[self.aruco_dict]),
             self.detector_params,
@@ -172,11 +180,11 @@ class ArucoNode(Node):
                 ],  # Bottom-left
             ]
         )
-        llogger.debug("Finished creating aruco tracker")
+        llogger.debug("Finished creating ArUco tracker")
 
         # Subscriber configuration
+        #
         # TODO: Should we crash if we can't connect to image topic?
-        # self.latest_image = None # Most recent video capture frame from subscriber
         self.image_subscription = self.create_subscription(
             RosImage, "/sensors/mono_image", self.image_callback, 1
         )
@@ -265,7 +273,7 @@ class ArucoNode(Node):
 
         # Convert from cv2 camera coordinate system to robotic coordinate system
         # (cv) x, y, z =>  (robot) z, x, y
-        cam_tvec = [cv_tvec[2][0], cv_tvec[0][0], cv_tvec[1][0]]
+        cam_tvec: list[MatLike] = [cv_tvec[2][0], cv_tvec[0][0], cv_tvec[1][0]]
 
         # Convert axis-angle format to rotation matrix format
         cv_rmatrix, __ = cv.Rodrigues(cv_rvec)
@@ -273,11 +281,11 @@ class ArucoNode(Node):
             cv_rmatrix,
             np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
         )
-        cam_quaternion = R.from_matrix(cam_rmatrix).as_quat()
+        cam_quaternion: MatLike = R.from_matrix(cam_rmatrix).as_quat()
 
         return retval, cam_quaternion, cam_tvec
 
-    def read_camera_config_file(self):
+    def read_camera_config_file(self) -> tuple[MatLike, MatLike, float]:
         """Read the camera configuration file and return parameters"""
 
         # Try to open camera config file
