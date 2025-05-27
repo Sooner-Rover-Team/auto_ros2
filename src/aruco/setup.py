@@ -3,7 +3,7 @@ from glob import glob
 
 from setuptools import find_packages, setup
 
-package_name = "aruco_node"
+package_name = "aruco"
 
 _ = setup(
     name=package_name,
@@ -16,6 +16,7 @@ _ = setup(
             ["resource/" + package_name],
         ),
         ("share/" + package_name, ["package.xml"]),
+        #
         # Create launch files
         (os.path.join("share", package_name), glob("launch/*.launch.py")),
     ],
