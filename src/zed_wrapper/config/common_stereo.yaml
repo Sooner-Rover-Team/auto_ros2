@@ -1,5 +1,12 @@
 /**:
   ros__parameters:
+    # we override the QoS for the NavSatFix topic, as, for some reason,
+    # `zed-ros2-wrapper` seems to expect the GPS to use reliable parameters
+    qos_overrides:
+      "/sensors/gps":
+        subscriber:
+          reliability: best_effort
+
     use_sim_time: false
 
     simulation:
