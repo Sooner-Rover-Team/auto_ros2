@@ -46,6 +46,8 @@ def generate_test_description() -> LaunchDescription:
             ("run_headless", "True"),
             # ...but don't actually simulate anything
             ("run_sim_immediately", "False"),
+            # and use sim time
+            ("use_sim_time", "True"),
         ],
     )
 

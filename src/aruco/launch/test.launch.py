@@ -1,6 +1,5 @@
-from launch_ros.actions import Node
-
 from launch import LaunchDescription
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -8,7 +7,7 @@ def generate_launch_description():
 
     # Publish images from a video capture device
     image_capture_node = Node(
-        package="aruco_node",
+        package="aruco",
         executable="image_capture",
     )
 
@@ -21,7 +20,7 @@ def generate_launch_description():
     )
     # Start tracking aruco markers
     aruco_tracking_node = Node(
-        package="aruco_node",
+        package="aruco",
         executable="aruco_node",
     )
 
