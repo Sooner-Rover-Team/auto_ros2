@@ -7,7 +7,7 @@ from launch_ros.substitutions.find_package import get_package_share_directory
 
 
 def generate_launch_description() -> LaunchDescription:
-    pkg_zed: str = get_package_share_directory("zed_wrapper")
+    pkg_zed: str = get_package_share_directory("zed")
     pkg_simulator: str = get_package_share_directory("simulator")
 
     # include ZED's bundled launch file to avoid verbose nonsense.
@@ -20,7 +20,7 @@ def generate_launch_description() -> LaunchDescription:
                     [
                         pkg_zed,
                         "launch",
-                        "zed_camera.launch.py",
+                        "internal.launch.py",
                     ]
                 )
             ]
@@ -55,13 +55,24 @@ def generate_launch_description() -> LaunchDescription:
             # documentation:
             # https://web.archive.org/web/20240522090026/https://www.stereolabs.com/docs/ros2/zed-node
             #
-            # ...gps fusion sub
+            # ...sensor fusion + odometry
             SetRemap(src="/fix", dst="/sensors/gps"),
+            SetRemap(src="zed/imu/data", dst="/sensors/depth_image/imu"),
+            SetRemap(src="zed/odom", dst="/sensors/depth_image/odom"),
             #
             # ...depth camera stuff
             SetRemap(src="depth/depth_registered", dst="depth_registered"),
             SetRemap(src="depth/camera_info", dst="camera_info"),
-            SetRemap(src="depth/depth_info", dst="depth_info"),
+            SetRemap(
+                src="depth/depth_registered",
+                dst="/sensors/depth_image/depth_registered",
+            ),
+            SetRemap(
+                src="depth/camera_info", dst="/sensors/depth_image/camera_info"
+            ),
+            #
+            # ...pointcloud stuff
+            SetRemap(src="point_cloud", dst="/sensors/depth_image/point_cloud"),
             #
             # and, now, add the launch file itself.
             #
