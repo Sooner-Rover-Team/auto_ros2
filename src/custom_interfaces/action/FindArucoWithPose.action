@@ -5,3 +5,4 @@
 # Feedback
 geometry_msgs/Pose[] marker_poses
 uint8[] marker_ids
+builtin_interfaces/Time time_last_image_arrived
