@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch.actions import GroupAction, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
-from launch_ros.actions import SetRemap
+from launch_ros.actions import Node, SetRemap
 from launch_ros.substitutions.find_package import get_package_share_directory
 
 
@@ -30,9 +30,16 @@ def generate_launch_description() -> LaunchDescription:
             #
             # set namespace to align w/ our original spec
             ("namespace", "/sensors/depth_image"),
-            ("publish_map_tf", "true"),
-            ("publish_imu_tf", "true"),
+            #
+            # let other nodes take care of publishing to the tf tree
+            ("publish_map_tf", "false"),
+            ("publish_imu_tf", "false"),
+            #
+            # provide the correct path to the Rover URDF (3d model)
             ("xacro_path", f"{pkg_simulator}/resource/rover.urdf.xacro.xml"),
+            #
+            # configure the wrapper to use our sensors while mapping. this can
+            # increase accuracy and help in other subtle ways
             ("enable_gnss", "true"),
         ],
     )
@@ -63,4 +70,30 @@ def generate_launch_description() -> LaunchDescription:
         ],
     )
 
-    return LaunchDescription([remapping_group])
+    # we'll also add a node that just sticks the Zed camera (and all its many,
+    # many frames) onto the chassis.
+    #
+    # otherwise, it's kinda just... floating there
+    static_transform_node: Node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        arguments=[
+            # transform (x, y, z)
+            "0",
+            "0",
+            "0",
+            #
+            # rotation (roll, yaw, pitch)
+            "0",
+            "0",
+            "0",
+            #
+            # parent_frame
+            "chassis",
+            #
+            # child_frame
+            "zed_camera_link",
+        ],
+    )
+
+    return LaunchDescription([remapping_group, static_transform_node])
