@@ -1,7 +1,7 @@
 [project]
-name = "aruco_node"
+name = "aruco"
 version = "0.1.0"
-description = "Handles tracking aruco tags."
+description = "Handles tracking ArUco tags."
 readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["maintainers", "license", "scripts"]
@@ -16,8 +16,4 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
-dev = [
-    "colcon-common-extensions>=0.3.0",
-    "ruff>=0.8.4",
-    "typer>=0.15.2",
-]
+dev = ["colcon-common-extensions>=0.3.0", "ruff>=0.8.4", "typer>=0.15.2"]

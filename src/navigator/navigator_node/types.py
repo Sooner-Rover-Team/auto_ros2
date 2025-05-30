@@ -10,24 +10,20 @@ class NavigationMode(Enum):
     OBJECT_DETECTION = 2
 
 
-class GoToCoordinateReason(Enum):
-    """
-    The 'reason' we're going to a coordinate.
-
-    As an argument to `go_to_coordinate`, this type allows it to use the correct
-    stopping distance.
-    """
-
-    GPS = 0
-    ARUCO = 1
-
-
 @dataclass(kw_only=True)
 class NavigationParameters:
     coord: GeoPoint
     """
     The coordinate that either is our goal (if `mode` is `GPS`), or is some
-    point around an ArUco/object.
+    point around an ArUco marker or an object.
+    """
+
+    aruco_marker_id: int | None = None
+    """
+    We're searching for a marker with this ID.
+
+    ArUco markers have IDs defined by a dictionary. URC uses 4x4_50.
+    https://docs.opencv.org/3.4/d9/d6a/group__aruco.html#ggac84398a9ed9dd01306592dd616c2c975ada8e830ff0024e839e93c01f5fed0c55
     """
 
     mode: NavigationMode
