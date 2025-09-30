@@ -27,11 +27,11 @@ def generate_launch_description() -> LaunchDescription:
                             [
                                 pkg_drive_launcher,
                                 "launch",
-                                "rover.launch.py",
+                                "rover.zed.launch.py",
                             ]
                         )
                     ]
-                )
+                ),
             ),
             #
             # and `ebox.launch.py` is the ebox <=> autonomous communication

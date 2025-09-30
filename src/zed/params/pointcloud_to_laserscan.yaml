@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    output_frame: base_link
+    range_min: 0.3
+    range_max: 10.0
+    use_inf: true
+    height_min: -0.25
+    height_max: 0.25

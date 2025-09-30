@@ -10,7 +10,6 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
-    PythonExpression,
 )
 from launch_ros.actions import Node, SetParameter
 from launch_ros.actions.node import ExecuteProcess
@@ -166,8 +165,7 @@ def _slam_toolbox(
             "launch",
             "drive_launcher",
             "slam_toolbox.launch.py",
-            # 😮‍💨 yet another hack...
-            PythonExpression(["'use_sim_time:=' + str(", use_sim_time, ")"]),
+            ["use_sim_time:=", use_sim_time],
         ],
         shell=True,
         output="screen",
