@@ -126,6 +126,7 @@ jobs:
         run: |
           eval "$(pixi shell-hook)"
           . install/local_setup.bash
+          export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
           just test
 
   # Ensures that our Python code is properly formatted and contains no common
