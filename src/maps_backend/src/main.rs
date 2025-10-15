@@ -1,3 +1,11 @@
+//! # Maps backend (`maps_node`)
+//!
+//! This node subscribes to the `/sensors/gps` topic and listens to its
+//! messages.
+//!
+//! When it finds a GPS message, it then publishes it over a WebSocket to the
+//! frontend.
+
 use safe_drive::{
     context::Context, msg::common_interfaces::sensor_msgs, node::Node, qos::Profile,
     topic::subscriber::Subscriber,
@@ -35,9 +43,12 @@ async fn main() {
         .unwrap();
     tracing::debug!("GPS subscriber created!");
 
-    // Set up broadcast channel to share GPS data with WebSocket clients
+    // Set up broadcast channel to share GPS data with WebSocket clients.
+    //
+    // Note that `16` is the buffer size.
     tracing::debug!("Making thread broadcast channel...");
-    let (tx, rx) = broadcast::channel::<String>(16); // 16 is the buffer size
+    let (tx, rx): (broadcast::Sender<String>, broadcast::Receiver<String>) =
+        broadcast::channel::<String>(16);
     tracing::debug!("Completed creating thread broadcast channel!");
 
     // now, we'll spawn three tasks...
