@@ -1,6 +1,8 @@
-# Resources on Navigation
+# ARCHIVED: Our previous design for the `navigator` package
 
-How to implement the navigator according to our current design (2025-04-01 ymd).
+This file contains our previous design for the `navigator::navigator_node`. It was created before we switched over to Nav2, a library that handles navigating for us.
+
+However, we keep it in the repo for future reference. (i.e., we could switch the design again later)
 
 ## Wheel speeds between Rover and Target
 
