@@ -33,6 +33,7 @@ cxx-compiler = { channel = "conda-forge" }
 glib = { version = ">=2.80.2,<3", channel = "conda-forge" }
 make = { version = "==4.4.1", channel = "conda-forge" }
 rust = { version = ">=1.89.0", channel = "conda-forge" }
+rust-src = { version = ">=1.89.0", channel = "conda-forge" }
 
 # system python dependencies
 basedpyright = { version = ">=1.31.3", channel = "conda-forge" }
