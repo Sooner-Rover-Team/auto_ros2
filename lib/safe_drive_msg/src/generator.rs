@@ -506,7 +506,10 @@ safe_drive = {safe_drive_dep}
             //
             // so, to ensure that happens, we pass another set of traits,
             // including the `Clone` trait.
-            &ACTION_RESULT_DERIVED_TRAITS_SET,
+            match suffix {
+                ActionType::Result => &ACTION_RESULT_DERIVED_TRAITS_SET,
+                ActionType::Goal | ActionType::Feedback => &DEFAULT_DERIVED_TRAITS_SET,
+            },
             lib,
         );
         lines.push_back(gen_impl_for_struct(lib, "action", &struct_def.id));
