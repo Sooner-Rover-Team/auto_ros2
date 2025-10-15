@@ -73,9 +73,18 @@ async fn handle_ros2_messages(mut sub: Subscriber<NavSatFix>, tx: broadcast::Sen
         match sub.recv().await {
             Ok(msg) => {
                 // make a small JSON message with the msg's lat + lon
-                let lat = msg.latitude;
-                let lon = msg.longitude;
-                let json = format!(r#"{{"lat": {}, "lon": {}}}"#, lat, lon);
+                let lat: f64 = msg.latitude;
+                let lon: f64 = msg.longitude;
+
+                // ensure that neither is NaN
+                if !lat.is_finite() || !lon.is_finite() {
+                    tracing::error!(
+                        "Either lat or lon is NaN/infinite! Not sending message. got: ({lat:?}, {lon:?})"
+                    );
+                    return;
+                }
+
+                let json: String = create_json_coordinate_pair(lat, lon);
 
                 // debug print it
                 tracing::debug!("Sending the following JSON: {json}");
@@ -95,6 +104,13 @@ async fn handle_ros2_messages(mut sub: Subscriber<NavSatFix>, tx: broadcast::Sen
             }
         }
     }
+}
+
+/// The correct format, in JSON, for the frontend, is as follows:
+///
+/// `{"lat": A.Bbbbbbb, "lon": C.Dddddd}`
+fn create_json_coordinate_pair(lat: f64, lon: f64) -> String {
+    format!(r#"{{"lat": {:?}, "lon": {:?}}}"#, lat, lon)
 }
 
 const BIND_ADDR: &str = "192.168.1.68:9001";
