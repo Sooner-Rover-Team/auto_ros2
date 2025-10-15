@@ -6,6 +6,9 @@
 //! When it finds a GPS message, it then publishes it over a WebSocket to the
 //! frontend.
 
+use core::fmt::Write as _;
+use std::sync::Arc;
+
 use safe_drive::{
     context::Context, msg::common_interfaces::sensor_msgs, node::Node, qos::Profile,
     topic::subscriber::Subscriber,
@@ -13,7 +16,6 @@ use safe_drive::{
 use sensor_msgs::msg::NavSatFix;
 
 use futures_util::{SinkExt, StreamExt};
-use std::sync::Arc;
 use tokio::{net::TcpListener, sync::broadcast};
 use tokio_tungstenite::accept_async;
 use tungstenite::{Message, Utf8Bytes};
@@ -81,6 +83,9 @@ async fn handle_ros2_messages(mut sub: Subscriber<NavSatFix>, tx: broadcast::Sen
     tracing::info!("Now handling ROS 2 messsages!");
 
     loop {
+        // holds the json text we create
+        let mut json = String::new();
+
         match sub.recv().await {
             Ok(msg) => {
                 // make a small JSON message with the msg's lat + lon
@@ -95,7 +100,8 @@ async fn handle_ros2_messages(mut sub: Subscriber<NavSatFix>, tx: broadcast::Sen
                     return;
                 }
 
-                let json: String = create_json_coordinate_pair(lat, lon);
+                // update `json` with the new JSON text
+                create_json_coordinate_pair(&mut json, lat, lon);
 
                 // debug print it
                 tracing::debug!("Sending the following JSON: {json}");
@@ -120,8 +126,20 @@ async fn handle_ros2_messages(mut sub: Subscriber<NavSatFix>, tx: broadcast::Sen
 /// The correct format, in JSON, for the frontend, is as follows:
 ///
 /// `{"lat": A.Bbbbbbb, "lon": C.Dddddd}`
-fn create_json_coordinate_pair(lat: f64, lon: f64) -> String {
-    format!(r#"{{"lat": {:?}, "lon": {:?}}}"#, lat, lon)
+fn create_json_coordinate_pair(s: &mut String, lat: f64, lon: f64) {
+    s.clear(); // clear the string
+
+    // push all this stuff to the string in order
+    s.push_str(r#"{"lat": "#); // {"lat":
+    write!(s, "{lat:?}").unwrap(); //  {"lat": A.Bbbbbbb
+    s.push_str(r#", "lon": "#); // {"lat": A.Bbbbbbb, "lon":
+    write!(s, "{lon:?}").unwrap(); // {"lat": A.Bbbbbbb, "lon": C.Dddddd
+    s.push('}'); // DONE! {"lat": A.Bbbbbbb, "lon": C.Dddddd}
+
+    // since `s` is `&mut`, we're modifying it instead of returning a new
+    // string.
+    //
+    // this is moderately faster, which could be important at comp
 }
 
 const BIND_ADDR: &str = "192.168.1.68:9001";
@@ -213,7 +231,9 @@ mod tests {
 
         // check that each pair matches expectations
         for ((lat, lon), (lat_str, lon_str)) in COORD_RESULT_PAIRS {
-            let as_json: String = super::create_json_coordinate_pair(*lat, *lon);
+            let mut as_json: String = String::new();
+            super::create_json_coordinate_pair(&mut as_json, *lat, *lon);
+
             let split = as_json.split(", ").collect::<Vec<_>>();
             let [lat_json, lon_json] = split.as_slice() else {
                 panic!();
