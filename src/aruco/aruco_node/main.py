@@ -8,11 +8,14 @@ import rclpy
 
 # Used to convert OpenCV Mat type to ROS Image type
 # NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
+from rclpy.action import ActionServer
 import rclpy.subscription
+from builtin_interfaces.msg import Time
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped
 from loguru import logger as llogger
+from numpy.typing import NDArray
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.publisher import Publisher
@@ -22,28 +25,22 @@ from scipy.spatial.transform import (
 from sensor_msgs.msg import Image as RosImage
 from typing_extensions import override
 
-from .aruco_dict_map import aruco_dict_map
+from src.aruco.aruco_node.types import FoundMarkerInformation
+from custom_interfaces.action import FindArucoWithPose
 
+from .aruco_dict_map import aruco_dict_map
+from .utils import calc_object_pose
+
+import time
 
 @dataclass(kw_only=True)
 class ArucoNode(Node):
     """
-    When <TODO: started or action start msg recv'd?>, this node will begin
-    searching for ArUco markers in the environment. <TODO: see above> will
-    provide a marker ID to find.
-
-    If any marker is found, it sends feedback displaying which markers are
-    currently in frame.
-
-    <b>
-    This <TODO: action/node> runs until stopped by the Navigator node.
-    <TODO: how?> It's up to the caller to stop this node when we're close
-    enough to the goal.
-
-    In other words, the ArUco Node isn't making the calls - the Navigator
-    manages us!
-    </b>
+    TODO: class docs
     """
+
+    _found_marker_info: FoundMarkerInformation = FoundMarkerInformation()
+    """Information about what markers we've found."""
 
     camera_config_file: str
     """Filename of the config file."""
@@ -80,6 +77,8 @@ class ArucoNode(Node):
 
     obj_points: MatLike
 
+    _action_server: rclpy.action.ActionServer | None = None
+
     # camera configuration variables
     camera_mat: MatLike
     dist_coeffs: MatLike
@@ -93,7 +92,7 @@ class ArucoNode(Node):
                 "camera_config_file",
                 "cam.yml",
                 ParameterDescriptor(
-                    description="The camera config .yml file that contains camera matrix, distance coefficients, and reprojection error",
+                    description="The camera config (YAML file) that contains camera matrix, distance coefficients, and reprojection error",
                     read_only=True,
                 ),
             )
@@ -138,12 +137,12 @@ class ArucoNode(Node):
         (self.camera_mat, self.dist_coeffs, self.rep_error) = (
             self.read_camera_config_file()
         )
-        _ = self.get_logger().debug(
-            "Finished reading calibration information for camera"
-        )
+        _ = self.get_logger().debug("Read calibration information for camera.")
 
-        # Aruco detector configuration
-        self.detector_params = aruco.DetectorParameters()  # TODO: Look into this
+        # ArUco detector configuration
+        #
+        # TODO: look into this
+        self.detector_params = aruco.DetectorParameters()
         self.tracker = aruco.ArucoDetector(
             aruco.getPredefinedDictionary(aruco_dict_map[self.aruco_dict]),
             self.detector_params,
@@ -172,13 +171,13 @@ class ArucoNode(Node):
                 ],  # Bottom-left
             ]
         )
-        llogger.debug("Finished creating aruco tracker")
+        llogger.debug("Finished creating ArUco tracker")
 
         # Subscriber configuration
+        #
         # TODO: Should we crash if we can't connect to image topic?
-        # self.latest_image = None # Most recent video capture frame from subscriber
         self.image_subscription = self.create_subscription(
-            RosImage, "/sensors/mono_image", self.image_callback, 1
+            RosImage, "/sensors/mono_image", self._mono_image_callback, 1
         )
         llogger.debug("Finished creating image subscriber")
 
@@ -189,57 +188,78 @@ class ArucoNode(Node):
         )
         llogger.debug("Finished creating image subscriber")
 
-    def image_callback(self, image: RosImage):
-        """Get an image from the image topic and look for aruco tags."""
+        # Set up the action server
+        self._action_server = ActionServer(
+            self,
+            FindArucoWithPose,
+            'find_aruco_with_pose',
+            execute_callback=self._send_aruco_feedback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback
+        )
+        llogger.debug("Finished creating action server")
 
-        # Convert ROS image to cv2.Mat
+    def _mono_image_callback(self, image: RosImage):
+        """
+        This function runs when we get a new image from `/sensors/mono_image`!
+
+        It does the following:
+
+        1. Pipes image into an OpenCV `Mat` for further processing
+        2. Processes the `Mat` to check for ArUco markers visible in the image
+        3. Finds the "pose" of each marker in the image
+        4. Transforms each pose to use a Rover-local coordinate system
+        5. Stores the list of ArUco marker IDs and their poses in the class
+        6. Sends a signal to the action server(s) to ask them to update their
+           clients with the new information.
+        """
+        # save the time we recv'd the image
+        recv_time: Time = self.get_clock().now().to_msg()
+
+        # convert the ROS 2 `Image` into an OpenCV `Mat`
         cv_image: cv.Mat = self.bridge.imgmsg_to_cv2(image)  # pyright: ignore[reportAssignmentType]
 
-        # Detect the marker ids
-        detected_marker_corners, detected_marker_ids = self.detect_aruco_markers(
-            cv_image
-        )
+        # check for markers visible in the image
+        dect_res = self.detect_aruco_markers(cv_image)
+        marker_corners: Sequence[MatLike] = dect_res[0]
+        optional_marker_ids: MatLike | None = dect_res[1]
 
-        # If we found the marker we're looking for,
-        # calculate and publish its pose.
-        if detected_marker_ids is not None:
-            try:
-                marker_id_index = list(detected_marker_ids).index(self.marker_id)
+        # if we didn't find anything, do an early return
+        if optional_marker_ids is None:
+            # remove marker stuff from message and update the image update time
+            self._found_marker_info.marker_ids = None
+            self._found_marker_info.marker_poses = None
+            self._found_marker_info.time_last_image_arrived = recv_time
 
-                # Calculate the markers pose
-                calculated_pose, quaternion, tvec = self.calculate_pose(
-                    detected_marker_corners[marker_id_index]
-                )
-                llogger.debug(calculated_pose)
+            # TODO: add signal call
 
-                # Publish the markers transform
-                if calculated_pose:
-                    marker_pose_msg = PoseStamped()
-                    marker_pose_msg.header.stamp = self.get_clock().now().to_msg()
-                    # TODO: This should probably be a parameter
-                    marker_pose_msg.header.frame_id = "camera"
+            # then return
+            return
 
-                    marker_pose_msg.pose.position.x = tvec[0]
-                    marker_pose_msg.pose.position.y = tvec[1]
-                    marker_pose_msg.pose.position.z = tvec[2]
+        # alright, so, we did find markers.
+        #
+        # let's calculate the Rover-local pose for each...
+        marker_ids: list[int] = []
+        marker_poses: list[Pose] = []
+        for i in range(0, len(marker_corners)):
+            # grab the corners + id for this marker
+            corners: MatLike = marker_corners[i]
+            id: int = marker_ids[i]
 
-                    marker_pose_msg.pose.orientation.w = quaternion[0]
-                    marker_pose_msg.pose.orientation.x = quaternion[1]
-                    marker_pose_msg.pose.orientation.y = quaternion[2]
-                    marker_pose_msg.pose.orientation.z = quaternion[3]
+            # grab its pose
+            pose: Pose | None = calc_object_pose(
+                self.obj_points, corners, self.camera_mat, self.dist_coeffs
+            )
 
-                    self.marker_pose_publisher.publish(marker_pose_msg)
-                    llogger.debug(
-                        f"Publishing pose of marker:\n {tvec[0]}, {tvec[0]}, {tvec[0]}"
-                    )
-                else:
-                    llogger.error("Could not calculate pose of detected marker")
-            except ValueError:
-                # sometimes, we find other markers, but we don't really care
-                # about those markers' transforms.
-                #
-                # so... we're done.
-                return
+            # only add it when it's not `None`
+            if pose is not None:
+                marker_ids.append(id)
+                marker_poses.append(pose)
+
+        # set our marker info list
+        self._found_marker_info.marker_ids = marker_ids
+        self._found_marker_info.marker_poses = marker_poses
+        self._found_marker_info.time_last_image_arrived = recv_time
 
     def detect_aruco_markers(
         self, image: cv.Mat
@@ -256,16 +276,34 @@ class ArucoNode(Node):
 
     def calculate_pose(
         self, img_points: MatLike
-    ) -> tuple[bool, MatLike, list[MatLike]]:
-        """Given a set of image points (detected aruco corners), return the pose for the marker"""
-        img_points = np.array(img_points, dtype=np.float32).reshape(4, 2)
-        retval, cv_rvec, cv_tvec = cv.solvePnP(
-            self.obj_points, img_points, self.camera_mat, self.dist_coeffs
+    ) -> tuple[MatLike, list[MatLike]] | None:
+        """
+        Given a set of points in an image (which will be corners of detected
+        ArUco markers), this method returns their poses in 3D space.
+
+        Poses are converted to be in the Rover's coordinate format.
+        """
+
+        # numpy it up
+        np_points: NDArray[np.float32] = np.array(
+            img_points, dtype=np.float32
+        ).reshape(4, 2)
+
+        # stick needed info into OpenCV's `solve_pnp` for info about where the
+        # ArUco markers are in 3D space.
+        found_any_markers, cv_rvec, cv_tvec = cv.solvePnP(
+            self.obj_points, np_points, self.camera_mat, self.dist_coeffs
         )
+
+        # note that `found_any_markers` (the first thing in the tuple above)
+        # represents whether we got anything useful. when it's `false`, we'll
+        # just return `None` to the caller
+        if not found_any_markers:
+            return None
 
         # Convert from cv2 camera coordinate system to robotic coordinate system
         # (cv) x, y, z =>  (robot) z, x, y
-        cam_tvec = [cv_tvec[2][0], cv_tvec[0][0], cv_tvec[1][0]]
+        cam_tvec: list[MatLike] = [cv_tvec[2][0], cv_tvec[0][0], cv_tvec[1][0]]
 
         # Convert axis-angle format to rotation matrix format
         cv_rmatrix, __ = cv.Rodrigues(cv_rvec)
@@ -273,11 +311,11 @@ class ArucoNode(Node):
             cv_rmatrix,
             np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]]),
         )
-        cam_quaternion = R.from_matrix(cam_rmatrix).as_quat()
+        cam_quaternion: MatLike = R.from_matrix(cam_rmatrix).as_quat()
 
-        return retval, cam_quaternion, cam_tvec
+        return (cam_quaternion, cam_tvec)
 
-    def read_camera_config_file(self):
+    def read_camera_config_file(self) -> tuple[MatLike, MatLike, float]:
         """Read the camera configuration file and return parameters"""
 
         # Try to open camera config file
@@ -294,6 +332,38 @@ class ArucoNode(Node):
         fs.release()
 
         return camera_mat, dist_coeffs, rep_error
+    
+    def _goal_callback(self, goal_request):
+        """Handle incoming goal requests."""
+        self.get_logger().info("Received a new goal request.")
+        # Accept the goal request
+        return rclpy.action.GoalResponse.ACCEPT
+    
+    def _cancel_callback(self, goal_handle):
+        """Handle cancellation requests."""
+        self.get_logger().info("Received a cancel request.")
+        # Send cancel response
+        return rclpy.action.CancelResponse.ACCEPT
+    
+    def _send_aruco_feedback(self, goal_handle):
+        """Any time the FoundMarkerInformation changes, send feedback to the client."""
+        while rclpy.ok() and goal_handle.is_active():
+            feedback_msg = FindArucoWithPose.Feedback()
+            # Get the latest found marker information from the ArucoNode
+            feedback_msg.marker_ids = self._found_marker_info.marker_ids
+            feedback_msg.marker_poses = self._found_marker_info.marker_poses
+            feedback_msg.time_last_image_arrived = self._found_marker_info.time_last_image_arrived
+
+            self.get_logger.info(f"Sending feedback: {feedback_msg.marker_ids}, {feedback_msg.marker_poses}, {feedback_msg.time_last_image_arrived}", throttle_duration_sec=1.0)
+            # Publish feedback to the client
+            goal_handle.publish_feedback(feedback_msg)
+            # Sleep for a short duration to avoid busy-waiting
+            time.sleep(0.1)
+        
+        # Goal no longer active (canceled or shut down)
+        self.get_logger().info("Goal no longer active. Find Aruco action server is shutting down.")
+        result = FindArucoWithPose.Result()
+        return result
 
     @override
     def __hash__(self) -> int:
