@@ -304,9 +304,9 @@ class ArucoNode(Node):
         """
 
         # numpy it up
-        np_points: NDArray[np.float32] = np.array(
-            img_points, dtype=np.float32
-        ).reshape(4, 2)
+        np_points: NDArray[np.float32] = np.array(img_points, dtype=np.float32).reshape(
+            4, 2
+        )
 
         # stick needed info into OpenCV's `solve_pnp` for info about where the
         # ArUco markers are in 3D space.
@@ -374,9 +374,7 @@ class ArucoNode(Node):
             if self._image_event.wait(timeout=MSG_TIMEOUT):
                 with self._info_mutex:
                     feedback_msg.marker_ids = self._found_marker_info.marker_ids
-                    feedback_msg.marker_poses = (
-                        self._found_marker_info.marker_poses
-                    )
+                    feedback_msg.marker_poses = self._found_marker_info.marker_poses
                     feedback_msg.time_last_image_arrived = (
                         self._found_marker_info.time_last_image_arrived
                     )
