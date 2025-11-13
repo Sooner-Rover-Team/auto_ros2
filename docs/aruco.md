@@ -2,7 +2,7 @@
 
 ## `aruco::aruco_node`
 
-The `aruco_node` starts with `rover.launch.py`, mostly existing as an action server. When it has at least one running action, it starts processing `/sensors/mono_image` for ArUco markers. (in other words, it's explicitly **not processing** when there are no action instances)
+The `aruco_node` starts with `drive.launch.py`, mostly existing as an action server. When it has at least one running action, it starts processing `/sensors/mono_image` for ArUco markers. (in other words, it's explicitly **not processing** when there are no action instances)
 
 Each action can technically run forever, though it'll stop one of two ways:
 
@@ -31,7 +31,6 @@ Any time we find the marker, we convert its Rover-local pose to UTM and save it 
 When we've reached the coordinate, we'll react to one of two possibilities:
 
 1. We already found a marker! Drive to its saved UTM coordinate.
-
-- If we don't end up at the marker when we arrive, we'll start a search algorithm near the UTM coordinate instead.
-
-2. No marker found - let's perform a search algorithm. When we find something, navigate to its coordinate.
+  - If we don't end up at the marker when we arrive, we'll start a search algorithm near the UTM coordinate instead.
+2. No marker found
+  - let's perform a search algorithm. When we find something, navigate to its coordinate.

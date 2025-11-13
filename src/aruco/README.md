@@ -1,20 +1,17 @@
 # `aruco`
 
+A package related to finding ArUco markers.
+
 ## `aruco::aruco_node`
 
-This node subscribes to a ROS Image topic, processes the images for a specified ArUco marker, and publishes the pose of the ArUco marker to a new topic.
+This node starts an action server, subscribes to a ROS Image topic, processes each frame to find any ArUco markers, then publishes their poses as feedback.
 
 ## Image Capture Node
 
-This node let's you specify a specific camera to capture frames from and then publishes them to a ROS 2 Image topic.
+This node lets you specify a specific camera to capture frames from, then publishes them to a ROS 2 Image topic.
 
 ## Extra Scripts
 
 ### ChArUco Camera Calibration
 
-This script will let the user capture frames of a ChArUco calibration board and then use those frames to calculate a camera calibration yaml file which can be used to accurately estimate ArUco pose.
-
-# ROS Package Dependencies
-
-- `ros-rolling-sensor-msgs`
-- `ros-rolling-geometry-msgs`
+This script lets the user capture frames of a ChArUco calibration board. Then, it uses those frames to calculate a camera calibration `.yaml` file. This file is used to accurately estimate ArUco pose, so it's important we get it right!
