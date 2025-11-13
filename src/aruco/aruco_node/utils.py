@@ -80,9 +80,7 @@ def _calc_object_pose_inner(
 
     # Apply coordinate transformation to rotation matrix
     # i.e. from OpenCV's coordinate system to robot's coordinate system
-    rotation_matrix_robot: NDArray[np.float64] = (
-        rotation_matrix_cv @ cv_to_robot
-    )
+    rotation_matrix_robot: NDArray[np.float64] = rotation_matrix_cv @ cv_to_robot
 
     # Convert rotation matrix to quaternion
     orientation_quaternion: NDArray[np.float64] = R.from_matrix(
