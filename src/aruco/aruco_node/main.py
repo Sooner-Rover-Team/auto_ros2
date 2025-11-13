@@ -1,42 +1,45 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from threading import Event, Lock
 
 import cv2 as cv
 import cv2.aruco as aruco
 import numpy as np
 import rclpy
-
-# Used to convert OpenCV Mat type to ROS Image type
-# NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
-from rclpy.action import ActionServer
 import rclpy.subscription
 from builtin_interfaces.msg import Time
+from custom_interfaces.action import FindArucoWithPose
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose, PoseStamped
 from loguru import logger as llogger
 from numpy.typing import NDArray
 from rcl_interfaces.msg import ParameterDescriptor
+
+# Used to convert OpenCV Mat type to ROS Image type
+# NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
+from rclpy.action import ActionServer
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from scipy.spatial.transform import (
     Rotation as R,  # SciPy for quaternion conversion
 )
 from sensor_msgs.msg import Image as RosImage
-from typing_extensions import override
-
 from src.aruco.aruco_node.types import FoundMarkerInformation
-from custom_interfaces.action import FindArucoWithPose
+from typing_extensions import override
 
 from .aruco_dict_map import aruco_dict_map
 from .utils import calc_object_pose
 
-import time
 
 @dataclass(kw_only=True)
 class ArucoNode(Node):
     """
-    TODO: class docs
+    When its `FindArucoWithPose` action server is started up, this node checks
+    for ArUco markers via a constant scan.
+
+    It reports back to the client with feedback showing which markers are
+    visible, and at which positions they are at.
     """
 
     _found_marker_info: FoundMarkerInformation = FoundMarkerInformation()
@@ -78,6 +81,15 @@ class ArucoNode(Node):
     obj_points: MatLike
 
     _action_server: rclpy.action.ActionServer | None = None
+
+    # these two help sync the `_send_aruco_feedback` method with
+    # `_mono_image_callback`.
+    #
+    # WARNING: these are NOT abstracted! be very careful to use the lock!!!
+    _image_event: Event = Event()
+    """Emitted when we get a new image from the camera."""
+    _info_mutex: Lock = Lock()
+    """A MutEx for `info` to avoid data races."""
 
     # camera configuration variables
     camera_mat: MatLike
@@ -192,16 +204,17 @@ class ArucoNode(Node):
         self._action_server = ActionServer(
             self,
             FindArucoWithPose,
-            'find_aruco_with_pose',
+            "find_aruco_with_pose",
             execute_callback=self._send_aruco_feedback,
             goal_callback=self._goal_callback,
-            cancel_callback=self._cancel_callback
+            cancel_callback=self._cancel_callback,
         )
         llogger.debug("Finished creating action server")
 
     def _mono_image_callback(self, image: RosImage):
         """
-        This function runs when we get a new image from `/sensors/mono_image`!
+        This function runs when we get a new image from `/sensors/mono_image`,
+        which is our (primary) See3CAM color camera!
 
         It does the following:
 
@@ -227,11 +240,13 @@ class ArucoNode(Node):
         # if we didn't find anything, do an early return
         if optional_marker_ids is None:
             # remove marker stuff from message and update the image update time
-            self._found_marker_info.marker_ids = None
-            self._found_marker_info.marker_poses = None
-            self._found_marker_info.time_last_image_arrived = recv_time
+            with self._info_mutex:
+                self._found_marker_info.marker_ids = None
+                self._found_marker_info.marker_poses = None
+                self._found_marker_info.time_last_image_arrived = recv_time
 
-            # TODO: add signal call
+            # signal that we got a new frame!
+            self._image_event.set()
 
             # then return
             return
@@ -244,7 +259,7 @@ class ArucoNode(Node):
         for i in range(0, len(marker_corners)):
             # grab the corners + id for this marker
             corners: MatLike = marker_corners[i]
-            id: int = marker_ids[i]
+            id: int = int(optional_marker_ids[i][0])
 
             # grab its pose
             pose: Pose | None = calc_object_pose(
@@ -257,9 +272,13 @@ class ArucoNode(Node):
                 marker_poses.append(pose)
 
         # set our marker info list
-        self._found_marker_info.marker_ids = marker_ids
-        self._found_marker_info.marker_poses = marker_poses
-        self._found_marker_info.time_last_image_arrived = recv_time
+        with self._info_mutex:
+            self._found_marker_info.marker_ids = marker_ids
+            self._found_marker_info.marker_poses = marker_poses
+            self._found_marker_info.time_last_image_arrived = recv_time
+
+        # signal new frame
+        self._image_event.set()
 
     def detect_aruco_markers(
         self, image: cv.Mat
@@ -332,36 +351,58 @@ class ArucoNode(Node):
         fs.release()
 
         return camera_mat, dist_coeffs, rep_error
-    
+
     def _goal_callback(self, goal_request):
         """Handle incoming goal requests."""
         self.get_logger().info("Received a new goal request.")
         # Accept the goal request
         return rclpy.action.GoalResponse.ACCEPT
-    
+
     def _cancel_callback(self, goal_handle):
         """Handle cancellation requests."""
         self.get_logger().info("Received a cancel request.")
         # Send cancel response
         return rclpy.action.CancelResponse.ACCEPT
-    
+
     def _send_aruco_feedback(self, goal_handle):
         """Any time the FoundMarkerInformation changes, send feedback to the client."""
         while rclpy.ok() and goal_handle.is_active():
             feedback_msg = FindArucoWithPose.Feedback()
-            # Get the latest found marker information from the ArucoNode
-            feedback_msg.marker_ids = self._found_marker_info.marker_ids
-            feedback_msg.marker_poses = self._found_marker_info.marker_poses
-            feedback_msg.time_last_image_arrived = self._found_marker_info.time_last_image_arrived
 
-            self.get_logger.info(f"Sending feedback: {feedback_msg.marker_ids}, {feedback_msg.marker_poses}, {feedback_msg.time_last_image_arrived}", throttle_duration_sec=1.0)
+            # Get the latest found marker information from the ArucoNode
+            MSG_TIMEOUT: float = 2.0
+            if self._image_event.wait(timeout=MSG_TIMEOUT):
+                with self._info_mutex:
+                    feedback_msg.marker_ids = self._found_marker_info.marker_ids
+                    feedback_msg.marker_poses = (
+                        self._found_marker_info.marker_poses
+                    )
+                    feedback_msg.time_last_image_arrived = (
+                        self._found_marker_info.time_last_image_arrived
+                    )
+            else:
+                self.get_logger().warn(
+                    f"It's been {MSG_TIMEOUT} seconds, but no new image found!"
+                )
+                continue
+            pass
+
+            self.get_logger().info(
+                f"Sending feedback: {feedback_msg.marker_ids}, {feedback_msg.marker_poses}, {feedback_msg.time_last_image_arrived}",
+                throttle_duration_sec=1.0,
+            )
+
             # Publish feedback to the client
             goal_handle.publish_feedback(feedback_msg)
-            # Sleep for a short duration to avoid busy-waiting
-            time.sleep(0.1)
-        
+
+            # clear the event flag
+            self._image_event.clear()
+        pass
+
         # Goal no longer active (canceled or shut down)
-        self.get_logger().info("Goal no longer active. Find Aruco action server is shutting down.")
+        self.get_logger().info(
+            "Goal no longer active. Find Aruco action server is shutting down."
+        )
         result = FindArucoWithPose.Result()
         return result
 
