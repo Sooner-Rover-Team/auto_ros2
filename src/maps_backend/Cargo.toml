@@ -8,7 +8,7 @@ name = "maps_node"
 path = "src/main.rs"
 
 [dependencies]
-safe_drive = { version = "0.4.3", features = ["humble"] }
+safe_drive = { version = "0.4.3", features = ["jazzy"] }
 tokio = { version = "1.42.0", features = [
     "macros",
     "net",

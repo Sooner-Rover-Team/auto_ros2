@@ -1,14 +1,14 @@
+import os
+
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import (
-    PathJoinSubstitution,
-)
 from launch_ros.actions import Node, SetParameter
 from navigator_node.types import (
     NavigationMode,
 )
+
+from launch import LaunchDescription
 
 
 def generate_launch_description():
@@ -20,15 +20,7 @@ def generate_launch_description():
     # start the rover launch script
     rover_launch_file: IncludeLaunchDescription = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            [
-                PathJoinSubstitution(
-                    [
-                        pkg_drive_launcher,
-                        "launch",
-                        "rover.launch.py",
-                    ]
-                )
-            ],
+            os.path.join(pkg_drive_launcher, "launch", "rover.launch.py")
         ),
         launch_arguments=[("use_sim_time", use_sim_time)],
     )
@@ -36,15 +28,7 @@ def generate_launch_description():
     # launch all the gazebo stuff
     gazebo_launch_file: IncludeLaunchDescription = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            [
-                PathJoinSubstitution(
-                    [
-                        pkg_simulator,
-                        "launch",
-                        "gazebo_only.launch.py",
-                    ]
-                )
-            ],
+            os.path.join(pkg_simulator, "launch", "gazebo_only.launch.py")
         ),
         launch_arguments=[("use_sim_time", use_sim_time)],
     )

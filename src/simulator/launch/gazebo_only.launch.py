@@ -116,7 +116,7 @@ def generate_launch_description() -> LaunchDescription:
                 PythonExpression([run_headless, " and ' -s' or ''"]),
             ],
             "on_exit_shutdown": "True",
-            "gz_version": "6",
+            "gz_version": "8",
         }.items(),
     )
 
