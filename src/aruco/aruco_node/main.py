@@ -8,27 +8,33 @@ import numpy as np
 import rclpy
 import rclpy.subscription
 from builtin_interfaces.msg import Time
-from custom_interfaces.action import FindArucoWithPose
+from custom_interfaces.action import (
+    FindArucoWithPose,
+)
+from custom_interfaces.action._find_aruco_with_pose import (
+    FindArucoWithPose_Goal,
+)
 from cv2.typing import MatLike
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose, PoseStamped
 from loguru import logger as llogger
 from numpy.typing import NDArray
 from rcl_interfaces.msg import ParameterDescriptor
+from rclpy import action, utilities
 
 # Used to convert OpenCV Mat type to ROS Image type
 # NOTE: This may not be the most effective, we could turn the image into an AVIF string or even define a custom ROS data type.
-from rclpy.action import ActionServer
+from rclpy.action.server import ActionServer, ServerGoalHandle
 from rclpy.node import Node
 from rclpy.publisher import Publisher
 from scipy.spatial.transform import (
     Rotation as R,  # SciPy for quaternion conversion
 )
 from sensor_msgs.msg import Image as RosImage
-from src.aruco.aruco_node.types import FoundMarkerInformation
 from typing_extensions import override
 
 from .aruco_dict_map import aruco_dict_map
+from .types import FoundMarkerInformation
 from .utils import calc_object_pose
 
 
@@ -42,7 +48,7 @@ class ArucoNode(Node):
     visible, and at which positions they are at.
     """
 
-    _found_marker_info: FoundMarkerInformation = FoundMarkerInformation()
+    _found_marker_info: FoundMarkerInformation
     """Information about what markers we've found."""
 
     camera_config_file: str
@@ -80,7 +86,7 @@ class ArucoNode(Node):
 
     obj_points: MatLike
 
-    _action_server: rclpy.action.ActionServer | None = None
+    _action_server: action.server.ActionServer | None = None
 
     # these two help sync the `_send_aruco_feedback` method with
     # `_mono_image_callback`.
@@ -98,6 +104,7 @@ class ArucoNode(Node):
 
     def __init__(self):
         super().__init__("aruco_node")
+
         # Declare the parameters for the node
         self.camera_config_file = (
             self.declare_parameter(
@@ -211,6 +218,9 @@ class ArucoNode(Node):
         )
         llogger.debug("Finished creating action server")
 
+        # Initialize our `FoundMarkerInformation()`
+        self._found_marker_info = FoundMarkerInformation()
+
     def _mono_image_callback(self, image: RosImage):
         """
         This function runs when we get a new image from `/sensors/mono_image`,
@@ -259,7 +269,7 @@ class ArucoNode(Node):
         for i in range(0, len(marker_corners)):
             # grab the corners + id for this marker
             corners: MatLike = marker_corners[i]
-            id: int = int(optional_marker_ids[i][0])
+            id: int = int(optional_marker_ids[i][0])  # pyright: ignore[reportAny]
 
             # grab its pose
             pose: Pose | None = calc_object_pose(
@@ -352,21 +362,23 @@ class ArucoNode(Node):
 
         return camera_mat, dist_coeffs, rep_error
 
-    def _goal_callback(self, goal_request):
+    def _goal_callback(self, _goal_request: FindArucoWithPose_Goal):
         """Handle incoming goal requests."""
-        self.get_logger().info("Received a new goal request.")
+        _ = self.get_logger().info("Received a new goal request.")
+
         # Accept the goal request
-        return rclpy.action.GoalResponse.ACCEPT
+        return action.server.GoalResponse.ACCEPT
 
-    def _cancel_callback(self, goal_handle):
+    def _cancel_callback(self, _goal_handle: ServerGoalHandle):
         """Handle cancellation requests."""
-        self.get_logger().info("Received a cancel request.")
-        # Send cancel response
-        return rclpy.action.CancelResponse.ACCEPT
+        _ = self.get_logger().info("Received a cancel request.")
 
-    def _send_aruco_feedback(self, goal_handle):
+        # Send cancel response
+        return action.server.CancelResponse.ACCEPT
+
+    def _send_aruco_feedback(self, goal_handle: ServerGoalHandle):
         """Any time the FoundMarkerInformation changes, send feedback to the client."""
-        while rclpy.ok() and goal_handle.is_active():
+        while utilities.ok() and goal_handle.is_active:
             feedback_msg = FindArucoWithPose.Feedback()
 
             # Get the latest found marker information from the ArucoNode
@@ -379,13 +391,13 @@ class ArucoNode(Node):
                         self._found_marker_info.time_last_image_arrived
                     )
             else:
-                self.get_logger().warn(
+                _ = self.get_logger().warn(
                     f"It's been {MSG_TIMEOUT} seconds, but no new image found!"
                 )
                 continue
             pass
 
-            self.get_logger().info(
+            _ = self.get_logger().info(
                 f"Sending feedback: {feedback_msg.marker_ids}, {feedback_msg.marker_poses}, {feedback_msg.time_last_image_arrived}",
                 throttle_duration_sec=1.0,
             )
@@ -398,7 +410,7 @@ class ArucoNode(Node):
         pass
 
         # Goal no longer active (canceled or shut down)
-        self.get_logger().info(
+        _ = self.get_logger().info(
             "Goal no longer active. Find Aruco action server is shutting down."
         )
         result = FindArucoWithPose.Result()
