@@ -4,13 +4,14 @@ import cv2 as cv
 import cv2.aruco as aruco
 import numpy as np
 import pytest
-from aruco_node.utils import (  # pyright: ignore[reportImplicitRelativeImport]
-    _calc_object_pose_inner,  # pyright: ignore[reportPrivateUsage]
-)
 from cv2.typing import MatLike
 from numpy.typing import NDArray
 from pytest import approx
 from scipy.spatial.transform import Rotation as R
+
+from aruco_node.utils import (
+    _calc_object_pose_inner,  # pyright: ignore[reportPrivateUsage]
+)
 
 
 @pytest.fixture
