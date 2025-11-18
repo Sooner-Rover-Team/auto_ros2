@@ -137,9 +137,9 @@ def generate_launch_description() -> LaunchDescription:
 def _robot_localization(
     use_sim_time: LaunchConfiguration,
 ) -> IncludeLaunchDescription:
-   pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
-   
-   return IncludeLaunchDescription(
+    pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
+
+    return IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             [
                 PathJoinSubstitution(
