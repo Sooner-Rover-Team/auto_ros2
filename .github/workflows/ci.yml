@@ -1,5 +1,5 @@
 name: CI
-on: ["push"]
+on: ["push", "pull_request"]
 
 jobs:
   # Builds and tests the ROS 2 workspace using `colcon`.
