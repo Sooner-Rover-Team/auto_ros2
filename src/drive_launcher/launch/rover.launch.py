@@ -125,6 +125,11 @@ def generate_launch_description() -> LaunchDescription:
             depthimage_to_laserscan,
             navigation_stack,
             ros2_control,
+            Node(
+                executable="aruco_node",
+                package="aruco",
+                name="aruco_node",
+            ),
         ]
     )
 
@@ -132,7 +137,7 @@ def generate_launch_description() -> LaunchDescription:
 def _robot_localization(
     use_sim_time: LaunchConfiguration,
 ) -> IncludeLaunchDescription:
-    pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
+   pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
 
     return IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
