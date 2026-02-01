@@ -1,62 +1,27 @@
-//! # `soro_gps`
-//!
-//! Connects to the GPS and provides its data in a readable format.
-//!
-//! ## Usage (Rust)
-//!
-//! In short, you can use the various methods on `Gps` to interact with the Rover's GPS system.
-//!
-//! ```no_run
-//! # use core::net::IpAddr;
-//! use soro_gps::Gps;
-//!
-//! // we can make a GPS from a given IP address and port.
-//! //
-//! // on the Rover, this is from the router (hopefully a static IP) and a port
-//! let swift_ip: IpAddr = "192.168.1.222".parse().unwrap();
-//! let swift_port: u16 = 55556;
-//!
-//! // here, we make the GPS! this will automatically initialize it.
-//! let gps: Gps = Gps::new(swift_ip, swift_port).unwrap();
-//!
-//! // now, you can use its methods:
-//! println!("coord: {:?}", gps.coord());
-//! println!("height: {:?}", gps.height());
-//! println!("error in mm: {:?}", gps.error());
-//!
-//! // dropping it (when it falls from scope) automatically runs the required cleanup.
-//! ```
-//!
-//! ## Development
-//!
-//! To make changes, [install Rust](https://rustup.rs).
-//!
-//! ### Testing
-//!
-//! You'll want to run the tests before making releases. It's good to test everything concurrently, so consider using `cargo nextest` if you have it installed.
+#![doc = include_str!("../README.md")]
 
-use core::net::{IpAddr, Ipv4Addr};
-use std::time::{Duration, Instant};
+use libsbf::reader::SbfReader;
+use std::{
+    fs::File,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
-use error::{GpsConnectionError, GpsReadError};
-use tokio::net::UdpSocket;
+use error::GpsConnectionError;
 
 pub mod error;
 
-/// The best possible update time for the GPS.
+/// The fastest possible update time for the GPS.
 ///
 /// This is 1/20th of a second.
 pub const BEST_UPDATE_TIME: Duration = Duration::from_millis(1000 / 20);
 
-/// A safe wrapper for the low-level GPS functions.
-#[derive(Debug)]
+/// A representation of the GPS.
 pub struct Gps {
-    /// A UDP socket to speak with the GPS directly.
+    /// A reader for the GPS.
     ///
-    /// This allows us to get frames from the GPS.
-    socket: UdpSocket,
-
-    buf: [u8; 1024],
+    /// Uses the Septentrio Binary Format (SBF).
+    reader: SbfReader<File>,
 }
 
 impl Gps {
@@ -64,33 +29,30 @@ impl Gps {
     ///
     /// ## Errors
     ///
-    /// This constructor can fail if the GPS device is not available on the
-    /// provided IP address and port.
+    /// This constructor will error if the serial path given does not exist.
     #[tracing::instrument]
-    pub async fn new(
-        gps_ip: IpAddr,
-        gps_port: u16,
-        socket_port: u16,
-    ) -> Result<Self, GpsConnectionError> {
-        // bind the socket to a local port
-        let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 54555))
-            .await
-            .inspect_err(|e| {
-                tracing::error!(
-                    "Failed to bind to the given socket \
-                        port (i.e. the port we talk to the GPS from). There may be another \
-                        service on this port. err: {e}"
-                );
-            })?;
+    pub fn new(gps_path: PathBuf) -> Result<Self, GpsConnectionError> {
+        // try opening the file at that path
+        let file: File = std::fs::File::open(&gps_path).map_err(|e| {
+            // log an error
+            tracing::error!(
+                "Failed to open GPS at the given serial path. Path: `{}`, Error: {}",
+                gps_path.to_string_lossy(),
+                e
+            );
 
-        // connect to the gps and check its file descriptor
-        // socket.connect((gps_ip, gps_port)).await.inspect_err(|e| tracing::warn!("Failed to connect to the given IP and port. The GPS may not be accessible. err: {e}"))?;
-        tracing::debug!("Connected to GPS. (ip: {gps_ip}, gps port: {gps_port})");
+            // map to the connection error ty
+            GpsConnectionError::FileNotFound(gps_path.clone())
+        })?;
 
-        Ok(Self {
-            socket,
-            buf: [0; 1024],
-        })
+        tracing::debug!(
+            "Connected to GPS over serial! Path: `{}`",
+            gps_path.to_string_lossy()
+        );
+
+        let reader: SbfReader<File> = SbfReader::new(file);
+
+        Ok(Self { reader })
     }
 
     /// Attempts to get the required GPS message.
@@ -98,7 +60,7 @@ impl Gps {
     /// This can run forever! Run it on a background task if that won't work
     /// for your usage.
     #[tracing::instrument(skip(self))]
-    pub async fn get(&mut self) -> Result<GpsInfo, GpsReadError> {
+    pub fn get(&mut self) -> Option<GpsInfo> {
         tracing::trace!(
             "Attempting to get a GPS message. If this message \
             shows up without progress, no messages are being recv'd."
@@ -119,23 +81,54 @@ impl Gps {
                 last_time_warned = Instant::now();
             }
 
-            // create a buffer
-            self.buf = [0; 1024];
+            for msg in self.reader {
+                let msg = match msg {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::error!("Failed to get messages from the GPS reader! err: {e}");
+                        return None;
+                    }
+                };
 
-            let (bytes_recvd, remote_addr) = self
-                .socket
-                .recv_from(&mut self.buf)
-                .await
-                .inspect_err(|e| tracing::error!("Failed to recv from GPS socket! err: {e}"))
-                .inspect(|r| tracing::trace!("Got a message from the GPS! bytes: {}", r.0))
-                .map_err(|_| GpsReadError::ReadFailed)?;
+                match msg {
+                    libsbf::Messages::MeasExtra(meas_extra) => todo!(),
+                    libsbf::Messages::GALNav(galnav) => todo!(),
+                    libsbf::Messages::PVTGeodetic(pvtgeodetic) => todo!(),
+                    libsbf::Messages::ReceiverStatus(receiver_status) => todo!(),
+                    libsbf::Messages::Commands(commands) => todo!(),
+                    libsbf::Messages::GEORawL1(georaw_l1) => todo!(),
+                    libsbf::Messages::MeasEpoch(meas_epoch) => todo!(),
+                    libsbf::Messages::GALIon(galion) => todo!(),
+                    libsbf::Messages::GALUtc(galutc) => todo!(),
+                    libsbf::Messages::GALGstGps(galgst_gps) => todo!(),
+                    libsbf::Messages::GPSCNav(gpscnav) => todo!(),
+                    libsbf::Messages::INSSupport(inssupport) => todo!(),
+                    libsbf::Messages::Meas3Ranges(meas3_ranges) => todo!(),
+                    libsbf::Messages::Meas3Doppler(meas3_doppler) => todo!(),
+                    libsbf::Messages::BDSIon(bdsion) => todo!(),
+                    libsbf::Messages::ExtSensorStatus(ext_sensor_status) => todo!(),
+                    libsbf::Messages::INSNavGeod(insnav_geod) => todo!(),
+                    libsbf::Messages::VelSensorSetup(vel_sensor_setup) => todo!(),
+                    libsbf::Messages::AttEuler(att_euler) => todo!(),
+                    libsbf::Messages::AttCovEuler(att_cov_euler) => todo!(),
+                    libsbf::Messages::DiffCorrIn(diff_corr_in) => todo!(),
+                    libsbf::Messages::ExtSensorMeas(ext_sensor_meas) => todo!(),
+                    libsbf::Messages::QualityInd(quality_ind) => todo!(),
+                    libsbf::Messages::ExtSensorInfo(ext_sensor_info) => todo!(),
+                    libsbf::Messages::ImuSetup(imu_setup) => todo!(),
+                    libsbf::Messages::ReceiverSetup(receiver_setup) => todo!(),
+                    libsbf::Messages::GEONav(geonav) => todo!(),
+                    libsbf::Messages::GPSIon(gpsion) => todo!(),
+                    libsbf::Messages::GPSNav(gpsnav) => todo!(),
+                    libsbf::Messages::GPSUtc(gpsutc) => todo!(),
+                    libsbf::Messages::PosCovGeodetic(pos_cov_geodetic) => todo!(),
+                    libsbf::Messages::Unsupported(_) => todo!(),
+                }
+            }
 
             // remember that we got some data
-            tracing::trace!("got {} bytes from ip: {}", bytes_recvd, remote_addr);
+            tracing::trace!("got new message from GPS!");
             last_time_got_data = Instant::now();
-
-            // try to parse whatever we got
-            let all_parsed = sbp::iter_messages(self.buf.as_slice());
 
             // we'll try to parse each message now.
             //
@@ -175,17 +168,6 @@ impl Gps {
                     // TODO: add additonal fallbacks if needed!
                     _ => (),
                 };
-
-                // TODO: use second Swift on Base Station to get better heading
-                // data.
-                //match maybe_good_msg { ... }
-
-                // TODO: add (e.g.) heartbeat messages and other status info.
-                //
-                // publishing onto various `/sensors/gps/**` topics could
-                // assist us in debugging far into the future ;D
-                //
-                //match maybe_good_msg { ... }
             }
         }
     }
