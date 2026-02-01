@@ -15,10 +15,9 @@ readme = "README.md"
 crate-time = ["staticlib"]
 
 [dependencies]
-pisserror = "0.3.0"
+libsbf = { version = "0.14.0", features = ["std"] }
+tokio = { version = "1.43.0", features = ["time"] }
 tracing = "0.1.41"
-sbp = "6.2.1"
-tokio = { version = "1.43.0", features = ["net", "time"] }
 
 [dev-dependencies]
 tracing-subscriber = "0.3.19"
