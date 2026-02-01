@@ -4,9 +4,11 @@ On the Rover, we have a lotta sensors to maintain Autonomous operations.
 
 ## GPS
 
-- connection: TCP (through the router. see [`network.md`](../network.md) for more info!)
+- connection: USB 2.0 (with a bundled driver that fakes a serial connection)
 
-Our GPS is a Swift Navigation Piksi Multi. It provides a multitude of measurements, some of which only appear when [setting up the Base Station](https://support.swiftnav.com/support/solutions/articles/44001904334-piksi-multi-gnss-rtk-position-with-stationary-base). Having the Base Station can also increase the reliability of data. We're not currently using this enhanced data, but doing so is absolutely possible (and preferable).
+We use the [Septentrio mosaic-Go Heading](https://www.digikey.com/en/products/detail/septentrio-inc/410397/18091780) evaluation kit as the GNSS (GPS) receiver in our Rover. The device supports up to 2 antennas, though we only use one at the moment. The antenna we use is the Swift Navigation GPS500. It connects to the GNSS antenna over a regular old TNC connector. There are several of those cables scattered around the Bay; usually, one is connected to the antenna already.
+
+The mosaic-Go plugs into any computer via a micro-USB cable; this both powers it and provides a web interface on a fake network connection. **You do not need any other cable to connect; just that one micro-USB**. To configure the mosaic-Go, just plug it into your computer, open your network settings, and find its IP. For me, it was accessible at [this IP: `192.168.3.1`](https://192.168.3.1/scr). Please back up the configuration before making any changes.
 
 ## Color Camera
 
