@@ -9,8 +9,8 @@ fn main() {
     // IMPORTANT: change this to the GPS' serial connection file.
     //
     // on Windows, you might be outta luck, but macOS and Linux should allow
-    // grabbing this with: `ls /dev | grep ACM`
-    const DEVICE_PATH: &str = "TODO";
+    // grabbing this with: `ls /dev/serial/by-id | grep Septentrio`
+    const DEVICE_PATH: &str = "/dev/ttyACM0";
 
     // then, "make a connection" by reading from that file!
     let mut gps: Gps = match Gps::new(DEVICE_PATH.into()) {
