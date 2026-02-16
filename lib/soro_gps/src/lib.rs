@@ -381,8 +381,8 @@ mod parsing {
 
 #[cfg(test)]
 mod tests {
-    use super::Gps;
-    use libsbf::{reader::SbfReader, Messages};
+    use super::{parsing, FixStatus, Gps};
+    use libsbf::{reader::SbfReader, Messages, PVTGeodetic, PosCovGeodetic};
     use std::fs::File;
 
     fn data_file(file_name: &str) -> std::path::PathBuf {
@@ -423,5 +423,143 @@ mod tests {
             .expect("should parse at least one PVTGeodetic message");
         assert!(info.coord.lat.is_finite());
         assert!(info.coord.lon.is_finite());
+    }
+
+    #[test]
+    fn minimal_sbf_regression_expected_values() {
+        let file = File::open(data_file("minimal_sbf.sbf")).expect("sample file should open");
+        let reader = SbfReader::new(file);
+
+        let mut pvt_geodetic: Option<PVTGeodetic> = None;
+        let mut pos_cov_geodetic: Option<PosCovGeodetic> = None;
+
+        for msg in reader {
+            let msg = msg.expect("minimal_sbf SBF should decode");
+            match msg {
+                Messages::PVTGeodetic(pvt) if pvt_geodetic.is_none() => pvt_geodetic = Some(pvt),
+                Messages::PosCovGeodetic(pos_cov) if pos_cov_geodetic.is_none() => {
+                    pos_cov_geodetic = Some(pos_cov)
+                }
+                _ => {}
+            }
+
+            if pvt_geodetic.is_some() && pos_cov_geodetic.is_some() {
+                break;
+            }
+        }
+
+        let pvt_geodetic = pvt_geodetic.expect("minimal_sbf.sbf should contain PVTGeodetic");
+        let pos_cov_geodetic =
+            pos_cov_geodetic.expect("minimal_sbf.sbf should contain PosCovGeodetic");
+
+        assert_eq!(pvt_geodetic.tow, Some(162480000));
+        assert_close(
+            pvt_geodetic.latitude.expect("lat should exist"),
+            0.6145361740716572,
+            1e-12,
+        );
+        assert_close(
+            pvt_geodetic.longitude.expect("lon should exist"),
+            -1.7006749045222338,
+            1e-12,
+        );
+        assert_close(
+            pvt_geodetic.height.expect("height should exist"),
+            326.3521656619435,
+            1e-12,
+        );
+
+        assert_eq!(pos_cov_geodetic.tow, Some(162480000));
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_latlat
+                    .expect("cov_latlat should exist"),
+            ),
+            1.4662505,
+            5e-7,
+        );
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_lonlon
+                    .expect("cov_lonlon should exist"),
+            ),
+            6.332064,
+            5e-7,
+        );
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_hgthgt
+                    .expect("cov_hgthgt should exist"),
+            ),
+            7.9160724,
+            5e-7,
+        );
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_latlon
+                    .expect("cov_latlon should exist"),
+            ),
+            -1.0395553,
+            5e-7,
+        );
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_lathgt
+                    .expect("cov_lathgt should exist"),
+            ),
+            -1.793132,
+            5e-7,
+        );
+        assert_close(
+            f64::from(
+                pos_cov_geodetic
+                    .cov_lonhgt
+                    .expect("cov_lonhgt should exist"),
+            ),
+            4.2639227,
+            5e-7,
+        );
+
+        let expected_covariance = [
+            6.332064151763916,
+            -1.039555311203003,
+            4.263922691345215,
+            -1.039555311203003,
+            1.4662505388259888,
+            -1.793131947517395,
+            4.263922691345215,
+            -1.793131947517395,
+            7.916072368621826,
+        ];
+        let (cov_tow, covariance) = parsing::pos_cov_geodetic_covariance(&pos_cov_geodetic)
+            .expect("minimal_sbf.sbf covariance should be complete");
+        assert_eq!(cov_tow, 162480000);
+        for (actual, expected) in covariance.iter().zip(expected_covariance.iter()) {
+            assert_close(*actual, *expected, 1e-12);
+        }
+
+        let info = parsing::pvt_geodetic_to_info(&pvt_geodetic, covariance)
+            .expect("PVT should parse into GpsInfo");
+        assert_close(info.coord.lat, 35.21032913242285, 1e-12);
+        assert_close(info.coord.lon, -97.44149435293824, 1e-12);
+        assert_close(info.height.0, 326.3521656619435, 1e-12);
+        assert_eq!(info.tow.0, 162480000);
+        assert_eq!(info.fix_status, FixStatus::SinglePoint);
+        for (actual, expected) in info.covariance.iter().zip(expected_covariance.iter()) {
+            assert_close(*actual, *expected, 1e-12);
+        }
+    }
+
+    fn assert_close(actual: f64, expected: f64, tolerance: f64) {
+        let delta = (actual - expected).abs();
+        assert!(
+            delta <= tolerance,
+            "expected {expected} +/- {tolerance}, got {actual} (delta={delta})"
+        );
     }
 }
