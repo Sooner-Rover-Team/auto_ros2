@@ -162,9 +162,15 @@ ros-humble-rviz2 = { channel = "robostack-humble" }
 ros-humble-rviz-default-plugins = { channel = "robostack-humble" }
 ros-humble-xacro = { channel = "robostack-humble" }
 
-# note: we can only depend on `video4linux`... on Linux. lol
+# required by LiDAR
+ros-humble-pcl-conversions = { channel = "robostack-humble" }
+pcl = { channel = "conda-forge" }
+
 [target.linux.dependencies]
+# note: we can only depend on `video4linux`... on Linux. lol
 ros-humble-v4l2-camera = { channel = "robostack-humble" }
+# and yea this only runs on linux for one reason or another
+ros-humble-spatio-temporal-voxel-layer = { channel = "robostack-humble" }
 
 [pypi-dependencies]
 colcon-ros-cargo = ">=0.2.0"
