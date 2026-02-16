@@ -331,36 +331,6 @@ makes a wheel joint for ros2_control.
         </sensor>
     </gazebo>
 
-    <!-- depth camera -->
-    <gazebo reference="camera_link">
-        <sensor name="depth_image" type="depth_camera">
-            <visualize>true</visualize>
-            <update_rate>${depth_camera_refresh_speed}</update_rate>
-            <topic>${depth_camera_topic}</topic>
-            <always_on>true</always_on>
-
-            <camera>
-                <horizontal_fov>${depth_camera_fov}</horizontal_fov>
-
-                <!-- FIXME(bray): gazebo is broken here lol, this doesn't work-->
-                <camera_info_topic
-                >${depth_camera_info_topic}</camera_info_topic>
-
-                <image>
-                    <width>${depth_camera_frame_width}</width>
-                    <height>${depth_camera_frame_height}</height>
-                    <format>R_FLOAT32</format>
-                </image>
-                <clip>
-                    <near>0.1</near>
-                    <far>150.0</far>
-                </clip>
-            </camera>
-            <!-- TODO(bray): ensure u can just... have two on one link -->
-            <gz_frame_id>camera_link</gz_frame_id>
-        </sensor>
-    </gazebo>
-
     <ros2_control name="GazeboSimSystem" type="system">
       <hardware>
         <plugin>gz_ros2_control/GazeboSimSystem</plugin>
