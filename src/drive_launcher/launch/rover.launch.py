@@ -53,17 +53,6 @@ def generate_launch_description() -> LaunchDescription:
     # directly by our Navigator).
     robot_localization: IncludeLaunchDescription = _robot_localization(use_sim_time)
 
-    # the `depthimage_to_laserscan::depthimage_to_laserscan_node` gives us
-    # another source of `/tf:map` data.
-    #
-    # it converts our depth camera data (from the Zed 2i) into usable point
-    # clouds, which you'd otherwise have to get from a laser scanner.
-    #
-    # our Rover doesn't have one of those..! so, for object avoidance, we use
-    # this node to add boundaries to our map.
-    depthimage_to_laserscan: IncludeLaunchDescription = _depthimage_to_laserscan(
-        use_sim_time
-    )
 
     # ok, so this part launches a few different things...
     #
@@ -122,7 +111,6 @@ def generate_launch_description() -> LaunchDescription:
             utm_conversion_node,
             robot_state_publisher,
             robot_localization,
-            depthimage_to_laserscan,
             navigation_stack,
             ros2_control,
             Node(

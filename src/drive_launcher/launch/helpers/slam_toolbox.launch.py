@@ -13,10 +13,6 @@ def generate_launch_description() -> LaunchDescription:
         "use_sim_time", default="false"
     )
 
-    # we need this little node to make a link between `camera_link` and
-    # `camera_depth_frame`
-    camera_chain: Node = _make_camera_depth_frame_link_node(use_sim_time)
-
     slam_toolbox = Node(
         package="slam_toolbox",
         executable="async_slam_toolbox_node",
@@ -33,7 +29,6 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "use_sim_time",
             ),
-            camera_chain,
             slam_toolbox,
         ]
     )
@@ -46,25 +41,4 @@ def _get_conf() -> PathJoinSubstitution:
             "params",
             "slam_toolbox.yaml",
         ]
-    )
-
-
-def _make_camera_depth_frame_link_node(
-    use_sim_time: LaunchConfiguration,
-) -> Node:
-    return Node(
-        name="tf2_publish_camera_depth_frame_link_node",
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        arguments=[
-            "0",  # x
-            "0",  # y
-            "0",  # z
-            "0",  # rx
-            "0",  # ry
-            "0",  # rz
-            "camera_link",  # parent frame
-            "camera_depth_frame",  # subframe
-        ],
-        parameters=[{"use_sim_time": use_sim_time}],
     )
