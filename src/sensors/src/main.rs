@@ -31,7 +31,7 @@ use feedback::parse::Message;
 use safe_drive::msg::common_interfaces::{
     geometry_msgs::msg::Vector3, sensor_msgs::msg::NavSatFix,
 };
-use soro_gps::Gps;
+use soro_gps::{Gps, GpsInfo};
 use tokio::net::UdpSocket;
 
 mod zed_imu;
@@ -73,9 +73,8 @@ async fn main() {
     //
     // note: we use `0` for the port we bind on since it doesn't matter.
     // we're just sending stuff to people and assuming they get it.
-    let gps = Gps::new(sensor_setup.gps_ip, sensor_setup.gps_port, 54555_u16)
-        .await
-        .expect("gps creation");
+    let gps: Gps = Gps::new(sensor_setup.gps_path.into())
+        .expect("gps creation (connection over serial) should be successful");
 
     // create the imu publisher
     let imu_publisher: Publisher<Imu> = sensors_node
@@ -95,8 +94,7 @@ async fn main() {
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct SensorSetup {
     // gps
-    pub gps_ip: IpAddr,
-    pub gps_port: u16,
+    pub gps_path: Utf8PathBuf,
 
     // mono + depth cameras
     pub depth_camera_path: Utf8PathBuf,
@@ -120,10 +118,14 @@ impl AsRef<SensorSetup> for SensorSetup {
 impl Default for SensorSetup {
     fn default() -> Self {
         let ebox_microcontroller_ip = Ipv4Addr::new(192, 168, 1, 102).into();
+        let gps_path: Utf8PathBuf = std::env::var("SORO_GPS_PATH")
+            .map(Utf8PathBuf::from)
+            .unwrap_or_else(|_| {
+                "/dev/serial/by-id/usb-Septentrio_Septentrio_USB_Device_3844945-if02".into()
+            });
 
         Self {
-            gps_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 222)),
-            gps_port: 54555, // FIXME: this should be documented! check first though.
+            gps_path,
 
             depth_camera_path: Utf8PathBuf::new(), // TODO: this is pretty bad
             mono_camera_path: Utf8PathBuf::new(),  // and this too
@@ -147,10 +149,10 @@ pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<NavSatFix>) {
 
     loop {
         // check for gps data
-        let gps_data = match gps.get().await {
-            Ok(info) => info,
-            Err(e) => {
-                tracing::warn!("Failed to get GPS data from sensors node! err: {e}");
+        let gps_data: GpsInfo = match gps.get() {
+            Some(info) => info,
+            Option::None => {
+                tracing::warn!("Failed to get GPS data over serial!");
                 tokio::time::sleep(Duration::from_secs(1) / 20).await;
                 continue;
             }
@@ -159,16 +161,12 @@ pub async fn gps_task(mut gps: Gps, gps_pub: Publisher<NavSatFix>) {
         // set up a header with the correct time and `frame_id`
         //
         // time first...
+        let tow_ms = gps_data.tow.0;
         let stamp = UnsafeTime {
-            sec: gps_data.tow.0 as i32,
+            sec: (tow_ms / 1000) as i32,
 
-            // we're constructing a Rust struct, and doing so requires that all
-            // fields are given.
-            //
-            // however, our GPS provides the "Time of Week" (ToW) in seconds.
-            // it doesn't include nanoseconds, so we'll default the nanoseconds
-            // value to zero
-            nanosec: 0_u32,
+            // Time-of-week is in milliseconds.
+            nanosec: (tow_ms % 1000) * 1_000_000,
         };
         //
         // ...and now the header itself

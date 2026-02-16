@@ -16,6 +16,7 @@ crate-time = ["staticlib"]
 
 [dependencies]
 libsbf = { version = "0.14.0", features = ["std"] }
+serialport = { version = "4.8.1", default-features = false }
 tokio = { version = "1.43.0", features = ["time"] }
 tracing = "0.1.41"
 
