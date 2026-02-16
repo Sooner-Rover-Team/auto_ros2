@@ -31,8 +31,14 @@ install(CODE "execute_process(COMMAND chmod +x \${CMAKE_INSTALL_PREFIX}/lib/${PR
 
 # test stuff
 if(BUILD_TESTING)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     find_package(launch_testing_ament_cmake)
+
     add_launch_test(test/test_launch_sim_works.py)
+    add_test(
+        NAME simulator_test_tf_tree
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_CURRENT_SOURCE_DIR}/test/test_tf_tree.py
+    )
 endif()
 
 ament_package()
