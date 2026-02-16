@@ -231,6 +231,21 @@ makes a wheel joint for ros2_control.
         <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
     </joint>
 
+    <!-- unitree lidar frames -->
+    <link name="unilidar_imu" />
+    <joint name="unilidar_imu_joint" type="fixed">
+        <parent link="chassis" />
+        <child link="unilidar_imu" />
+        <origin xyz="0.3 0.0 0.1" rpy="0 0 0" />
+    </joint>
+
+    <link name="unilidar_lidar" />
+    <joint name="unilidar_lidar_joint" type="fixed">
+        <parent link="unilidar_imu" />
+        <child link="unilidar_lidar" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+
     <link name="chassis">
         <gazebo>
             <pose relative_to="__model__">0 0 0.2 0 0 0</pose>
