@@ -16,13 +16,15 @@ def generate_launch_description():
         name="unitree_lidar_ros2_node",
         output="screen",
         parameters=[
-            {"initialize_type": 2},
+            {"initialize_type": 1},
             {"work_mode": 0},
             {"use_system_timestamp": True},
             {"range_min": 0.0},
             {"range_max": 100.0},
             {"cloud_scan_num": 18},
-            {"serial_port": "/dev/ttyACM0"},
+            {
+                "serial_port": "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5A64013752-if00"
+            },
             {"baudrate": 4000000},
             {"lidar_port": 6101},
             {"lidar_ip": "192.168.1.62"},
