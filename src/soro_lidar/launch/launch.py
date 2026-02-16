@@ -44,7 +44,7 @@ def generate_launch_description():
         name="rviz2",
         arguments=[
             "-d",
-            PathJoinSubstitution([FindPackageShare("soro_lidar"), "rviz", "view.rviz"]),
+            PathJoinSubstitution([FindPackageShare("soro_lidar"), "view.rviz"]),
         ],
         output="log",
         condition=IfCondition(launch_rviz),
