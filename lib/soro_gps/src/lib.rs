@@ -1,8 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-use libsbf::reader::SbfReader;
+use libsbf::{parser::SbfParser, Messages};
 use std::{
     fs::File,
+    io::{ErrorKind, Read},
+    os::unix::fs::FileTypeExt,
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -15,13 +17,19 @@ pub mod error;
 ///
 /// This is 1/20th of a second.
 pub const BEST_UPDATE_TIME: Duration = Duration::from_millis(1000 / 20);
+/// Maximum allowed TOW delta (in ms) when pairing PVT with covariance.
+const COVARIANCE_TOW_TOLERANCE_MS: u32 = 1000;
 
 /// A representation of the GPS.
 pub struct Gps {
-    /// A reader for the GPS.
-    ///
-    /// Uses the Septentrio Binary Format (SBF).
-    reader: SbfReader<File>,
+    /// Underlying byte source (serial TTY or a sample file).
+    source: Box<dyn Read + Send>,
+
+    /// Streaming parser for Septentrio Binary Format (SBF).
+    parser: SbfParser,
+
+    /// Last known covariance block keyed by TOW.
+    latest_covariance_by_tow: Option<(u32, [f64; 9])>,
 }
 
 impl Gps {
@@ -32,27 +40,69 @@ impl Gps {
     /// This constructor will error if the serial path given does not exist.
     #[tracing::instrument]
     pub fn new(gps_path: PathBuf) -> Result<Self, GpsConnectionError> {
-        // try opening the file at that path
-        let file: File = std::fs::File::open(&gps_path).map_err(|e| {
-            // log an error
+        let gps_path_str = gps_path.to_string_lossy().to_string();
+        if gps_path_str.contains("Septentrio_USB_Device") && gps_path_str.contains("-if04") {
+            tracing::warn!(
+                "Connecting to `{}`. On many Septentrio mosaic-Go setups, \
+                binary SBF output is exposed on `...-if02`. If `get()` blocks \
+                forever, switch to the `if02` interface.",
+                gps_path_str
+            );
+        }
+
+        let metadata = std::fs::metadata(&gps_path).map_err(|e| {
             tracing::error!(
-                "Failed to open GPS at the given serial path. Path: `{}`, Error: {}",
+                "Failed to access GPS source metadata. Path: `{}`, Error: {}",
                 gps_path.to_string_lossy(),
                 e
             );
-
-            // map to the connection error ty
             GpsConnectionError::FileNotFound(gps_path.clone())
         })?;
 
-        tracing::debug!(
-            "Connected to GPS over serial! Path: `{}`",
-            gps_path.to_string_lossy()
-        );
+        let source: Box<dyn Read + Send> = if metadata.file_type().is_char_device() {
+            const USB_CDC_BAUD: u32 = 115_200;
+            const READ_TIMEOUT: Duration = Duration::from_millis(500);
 
-        let reader: SbfReader<File> = SbfReader::new(file);
+            let port = serialport::new(gps_path_str.clone(), USB_CDC_BAUD)
+                .timeout(READ_TIMEOUT)
+                .open_native()
+                .map_err(|e| {
+                    tracing::error!(
+                        "Failed to open GPS serial device. Path: `{}`, Error: {}",
+                        gps_path.to_string_lossy(),
+                        e
+                    );
+                    GpsConnectionError::FailedToOpen(gps_path.clone(), e.to_string())
+                })?;
 
-        Ok(Self { reader })
+            tracing::debug!(
+                "Connected to GPS over serial! Path: `{}`, timeout={:?}",
+                gps_path.to_string_lossy(),
+                READ_TIMEOUT
+            );
+            Box::new(port)
+        } else {
+            let file: File = std::fs::File::open(&gps_path).map_err(|e| {
+                tracing::error!(
+                    "Failed to open GPS source file. Path: `{}`, Error: {}",
+                    gps_path.to_string_lossy(),
+                    e
+                );
+                GpsConnectionError::FailedToOpen(gps_path.clone(), e.to_string())
+            })?;
+
+            tracing::debug!(
+                "Connected to GPS sample file source. Path: `{}`",
+                gps_path.to_string_lossy()
+            );
+            Box::new(file)
+        };
+
+        Ok(Self {
+            source,
+            parser: SbfParser::new(),
+            latest_covariance_by_tow: None,
+        })
     }
 
     /// Attempts to get the required GPS message.
@@ -66,10 +116,38 @@ impl Gps {
             shows up without progress, no messages are being recv'd."
         );
 
-        // grab data until we have the correct message types
+        // Grab data until we have a usable `PVTGeodetic`, ideally paired with
+        // a matching `PosCovGeodetic` from the same TOW.
+        //
+        // We enforce a timeout so malformed/non-SBF streams do not block
+        // forever inside parsing.
+        const MAX_WAIT_FOR_FIX: Duration = Duration::from_millis(1500);
+        const READ_BUFFER_SIZE: usize = 8192;
+
+        let start_time: Instant = Instant::now();
         let mut last_time_got_data: Instant = Instant::now();
         let mut last_time_warned: Instant = Instant::now();
+        let mut buffer = [0_u8; READ_BUFFER_SIZE];
+
         loop {
+            if start_time.elapsed() > MAX_WAIT_FOR_FIX {
+                tracing::warn!(
+                    "Timed out waiting for a usable PVTGeodetic fix after {:.2} seconds. \
+                    Please check that the stream is configured to output SBF; \
+                    also, ensure that the GPS antenna has a view of the sky.",
+                    start_time.elapsed().as_secs_f32()
+                );
+                return None;
+            }
+
+            // Drain any already-buffered parser data first.
+            if let Some(msg) = self.parser.consume(&[]) {
+                if let Some(info) = self.handle_message(msg) {
+                    return Some(info);
+                }
+                continue;
+            }
+
             // if we haven't collected data in a while, we'll warn the user!
             if last_time_got_data.elapsed() > Duration::from_millis(1500)
                 && last_time_warned.elapsed() > Duration::from_millis(1500)
@@ -81,94 +159,67 @@ impl Gps {
                 last_time_warned = Instant::now();
             }
 
-            for msg in self.reader {
-                let msg = match msg {
-                    Ok(m) => m,
-                    Err(e) => {
-                        tracing::error!("Failed to get messages from the GPS reader! err: {e}");
-                        return None;
-                    }
-                };
-
-                match msg {
-                    libsbf::Messages::MeasExtra(meas_extra) => todo!(),
-                    libsbf::Messages::GALNav(galnav) => todo!(),
-                    libsbf::Messages::PVTGeodetic(pvtgeodetic) => todo!(),
-                    libsbf::Messages::ReceiverStatus(receiver_status) => todo!(),
-                    libsbf::Messages::Commands(commands) => todo!(),
-                    libsbf::Messages::GEORawL1(georaw_l1) => todo!(),
-                    libsbf::Messages::MeasEpoch(meas_epoch) => todo!(),
-                    libsbf::Messages::GALIon(galion) => todo!(),
-                    libsbf::Messages::GALUtc(galutc) => todo!(),
-                    libsbf::Messages::GALGstGps(galgst_gps) => todo!(),
-                    libsbf::Messages::GPSCNav(gpscnav) => todo!(),
-                    libsbf::Messages::INSSupport(inssupport) => todo!(),
-                    libsbf::Messages::Meas3Ranges(meas3_ranges) => todo!(),
-                    libsbf::Messages::Meas3Doppler(meas3_doppler) => todo!(),
-                    libsbf::Messages::BDSIon(bdsion) => todo!(),
-                    libsbf::Messages::ExtSensorStatus(ext_sensor_status) => todo!(),
-                    libsbf::Messages::INSNavGeod(insnav_geod) => todo!(),
-                    libsbf::Messages::VelSensorSetup(vel_sensor_setup) => todo!(),
-                    libsbf::Messages::AttEuler(att_euler) => todo!(),
-                    libsbf::Messages::AttCovEuler(att_cov_euler) => todo!(),
-                    libsbf::Messages::DiffCorrIn(diff_corr_in) => todo!(),
-                    libsbf::Messages::ExtSensorMeas(ext_sensor_meas) => todo!(),
-                    libsbf::Messages::QualityInd(quality_ind) => todo!(),
-                    libsbf::Messages::ExtSensorInfo(ext_sensor_info) => todo!(),
-                    libsbf::Messages::ImuSetup(imu_setup) => todo!(),
-                    libsbf::Messages::ReceiverSetup(receiver_setup) => todo!(),
-                    libsbf::Messages::GEONav(geonav) => todo!(),
-                    libsbf::Messages::GPSIon(gpsion) => todo!(),
-                    libsbf::Messages::GPSNav(gpsnav) => todo!(),
-                    libsbf::Messages::GPSUtc(gpsutc) => todo!(),
-                    libsbf::Messages::PosCovGeodetic(pos_cov_geodetic) => todo!(),
-                    libsbf::Messages::Unsupported(_) => todo!(),
+            let bytes_read = match self.source.read(&mut buffer) {
+                Ok(0) => {
+                    tracing::warn!("GPS stream ended.");
+                    return None;
                 }
-            }
+                Ok(n) => n,
+                Err(e) if matches!(e.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => {
+                    continue;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to read bytes from GPS source! err: {e}");
+                    return None;
+                }
+            };
 
-            // remember that we got some data
-            tracing::trace!("got new message from GPS!");
+            tracing::trace!("Read {bytes_read} bytes from GPS source.");
             last_time_got_data = Instant::now();
 
-            // we'll try to parse each message now.
-            //
-            // some of them are useless, and others are essential. we gotta
-            // check each to find out!
-            for msg in all_parsed {
-                // this might be the message we want, but we gotta check (below)
-                let maybe_good_msg = match msg {
-                    Ok(frame) => frame,
-                    Err(e) => {
-                        tracing::warn!("Failed to parse this message! err: {e}");
-                        return Err(GpsReadError::ParseFailed(e));
-                    }
-                };
-
-                // we'll take any of the following gps messages:
-                //
-                // - MsgPosLlh
-                // - MsgPosLlhCov
-                match maybe_good_msg {
-                    // if we have covariances, we can just use those!
-                    sbp::Sbp::MsgPosLlhCov(_) => {
-                        if let Some(info) = parsing::msg_pos_llh_cov(&maybe_good_msg) {
-                            return Ok(info);
-                        }
-                    }
-
-                    // without covariances, we'll just say we don't have them
-                    sbp::Sbp::MsgPosLlh(_) => {
-                        if let Some(info) = parsing::msg_pos_llh(&maybe_good_msg) {
-                            return Ok(info);
-                        }
-                    }
-
-                    // other variants are untested.
-                    //
-                    // TODO: add additonal fallbacks if needed!
-                    _ => (),
-                };
+            if let Some(msg) = self.parser.consume(&buffer[..bytes_read]) {
+                if let Some(info) = self.handle_message(msg) {
+                    return Some(info);
+                }
             }
+        }
+    }
+
+    fn handle_message(&mut self, msg: Messages) -> Option<GpsInfo> {
+        tracing::trace!("Handling message...");
+
+        match msg {
+            Messages::PosCovGeodetic(pos_cov_geodetic) => {
+                tracing::debug!("Got new `PosCovGeodetic` (position info)!");
+                self.latest_covariance_by_tow =
+                    parsing::pos_cov_geodetic_covariance(&pos_cov_geodetic);
+                None
+            }
+            Messages::PVTGeodetic(pvt_geodetic) => {
+                tracing::debug!("Got new `PVTGeodetic` (covariances)!");
+                let covariance = self.covariance_for_tow(pvt_geodetic.tow);
+
+                parsing::pvt_geodetic_to_info(&pvt_geodetic, covariance)
+            }
+            _ => None,
+        }
+    }
+
+    fn covariance_for_tow(&self, pvt_tow: Option<u32>) -> [f64; 9] {
+        match (pvt_tow, self.latest_covariance_by_tow.as_ref()) {
+            (Some(tow), Some((cov_tow, cov))) if tow == *cov_tow => *cov,
+            (Some(tow), Some((cov_tow, cov)))
+                if tow.abs_diff(*cov_tow) <= COVARIANCE_TOW_TOLERANCE_MS =>
+            {
+                tracing::trace!(
+                    "Using near-match covariance: pvt_tow={} cov_tow={} (delta={}ms)",
+                    tow,
+                    cov_tow,
+                    tow.abs_diff(*cov_tow)
+                );
+                *cov
+            }
+            _ => [0.0_f64; 9],
         }
     }
 }
@@ -229,136 +280,148 @@ pub enum FixStatus {
 }
 
 /// Everything in this module is related to parsing the GPS messages into
-/// something useful for maintainers of the `sensors::sensors_node`.
+/// something useful for the `sensors::sensors_node`.
 ///
-/// ## Why are there so many parsers?
-///
-/// Despite being so similar, the Swift GPS reports these as different message
-/// types, so we have to parse each individually, with respect to each
-/// variant's special properties.
-///
-/// We need to check for all of them due to our need for a fallback. At URC
-/// 2025, we noticed that our GPS was only providing `MsgPosLlh`, despite
-/// getting `MsgPosLlhCov` back in Oklahoma. By parsing both, we can be more
-/// certain that we're parsing useful messages if we're receiving them - even
-/// if they don't contain _everything_ we'd want... in a perfect world.
-///
-/// tl;dr: Swift has a lotta different messages, and they change depending on
-/// time, region, and luck.
+/// We derive position from `PVTGeodetic` and enrich it with covariance from
+/// `PosCovGeodetic` when both blocks share the same time-of-week.
 mod parsing {
     use crate::{Coordinate, FixStatus, GpsInfo, Height, TimeOfWeek};
+    use libsbf::{PVTGeodetic, PosCovGeodetic, PvtMode};
 
-    /// Parses from a `MsgPosLlhCov`.
-    ///
-    /// This is our preferred message types...
+    /// Parses covariance from `PosCovGeodetic`.
     #[tracing::instrument]
-    pub fn msg_pos_llh_cov(raw_msg: &sbp::Sbp) -> Option<GpsInfo> {
-        // ensure we got the right message type
-        let sbp::Sbp::MsgPosLlhCov(m) = raw_msg else {
-            tracing::error!("Provided wrong message type!");
+    pub fn pos_cov_geodetic_covariance(msg: &PosCovGeodetic) -> Option<(u32, [f64; 9])> {
+        let tow = msg.tow?;
+        let (
+            Some(cov_latlat),
+            Some(cov_lonlon),
+            Some(cov_hgthgt),
+            Some(cov_latlon),
+            Some(cov_lathgt),
+            Some(cov_lonhgt),
+        ) = (
+            msg.cov_latlat,
+            msg.cov_lonlon,
+            msg.cov_hgthgt,
+            msg.cov_latlon,
+            msg.cov_lathgt,
+            msg.cov_lonhgt,
+        )
+        else {
+            tracing::trace!("PosCovGeodetic missing covariance values for tow={tow}");
             return None;
         };
 
-        // grab the fix mode
-        let fix_mode = match m.fix_mode() {
-            Ok(fm) => fm,
-            Err(e) => {
-                tracing::error!("Failed to get fix mode from SwiftNav `MsgPosLlh`! err code: {e}");
-                return None;
-            }
-        };
-
-        // and convert that into a fix status
-        use sbp::messages::navigation::msg_pos_llh_cov::FixMode;
-        let fix_status = match fix_mode {
-            FixMode::Invalid | FixMode::DeadReckoning => FixStatus::Invalid,
-            FixMode::SinglePointPosition => FixStatus::SinglePoint,
-            FixMode::SbasPosition => FixStatus::Sbas,
-            FixMode::DifferentialGnss | FixMode::FloatRtk | FixMode::FixedRtk => {
-                FixStatus::GroundBased
-            }
-        };
-        // create the covariance.
+        // PosCovGeodetic is in (lat, lon, hgt) axes. ROS NavSatFix expects
+        // ENU covariance order [E, N, U] in row-major form.
         //
-        // note: ROS 2 wants `ENU`, but Swift provides `NED`.
-        // we'll move things around and flip down -> up...
-        let position_covariance: [f64; 9] = [
-            // east
-            m.cov_e_e as f64,
-            m.cov_n_e as f64,
-            -m.cov_e_d as f64,
-            // north
-            m.cov_n_e as f64,
-            m.cov_n_n as f64,
-            -m.cov_n_d as f64,
-            // up
-            -m.cov_e_d as f64,
-            -m.cov_n_d as f64,
-            m.cov_d_d as f64,
+        // Axis mapping:
+        // E <- lon
+        // N <- lat
+        // U <- hgt
+        let position_covariance = [
+            cov_lonlon as f64,
+            cov_latlon as f64,
+            cov_lonhgt as f64,
+            cov_latlon as f64,
+            cov_latlat as f64,
+            cov_lathgt as f64,
+            cov_lonhgt as f64,
+            cov_lathgt as f64,
+            cov_hgthgt as f64,
         ];
 
-        // create info from the basic stuff
-        let info = GpsInfo {
-            coord: Coordinate {
-                lat: m.lat,
-                lon: m.lon,
-            },
-            height: Height(m.height),
-            tow: TimeOfWeek(m.tow),
-            fix_status,
-            covariance: position_covariance,
-        };
-
-        return Some(info);
+        Some((tow, position_covariance))
     }
 
-    /// Parses from a `MsgPosLlh`, which doesn't have covariances. That means
-    /// the GPS isn't reporting how sure it is about its answer!
-    ///
-    /// We prefer position messages that provide that info instead, but this is
-    /// here as fallback.
+    /// Parses a `PVTGeodetic` into `GpsInfo`.
     #[tracing::instrument]
-    pub fn msg_pos_llh(raw_msg: &sbp::Sbp) -> Option<GpsInfo> {
-        // ensure we got the right message type
-        let sbp::Sbp::MsgPosLlh(m) = raw_msg else {
-            tracing::error!("Provided wrong message type!");
+    pub fn pvt_geodetic_to_info(msg: &PVTGeodetic, covariance: [f64; 9]) -> Option<GpsInfo> {
+        let (Some(tow), Some(lat), Some(lon), Some(height)) =
+            (msg.tow, msg.latitude, msg.longitude, msg.height)
+        else {
+            tracing::warn!(
+                "PVTGeodetic doesn't have position information. Ignoring... \
+                (tow: `{:?}`, lat: `{:?}`, lon: `{:?}`, height: `{:?}`)",
+                msg.tow,
+                msg.latitude,
+                msg.longitude,
+                msg.height
+            );
             return None;
         };
 
-        // grab the fix mode
-        let fix_mode = match m.fix_mode() {
-            Ok(fm) => fm,
-            Err(e) => {
-                tracing::error!("Failed to get fix mode from SwiftNav `MsgPosLlh`! err code: {e}");
-                return None;
-            }
-        };
-
-        // and convert that into a fix status
-        use sbp::messages::navigation::msg_pos_llh::FixMode;
-        let fix_status = match fix_mode {
-            FixMode::Invalid | FixMode::DeadReckoning => FixStatus::Invalid,
-            FixMode::SinglePointPosition => FixStatus::SinglePoint,
-            FixMode::SbasPosition => FixStatus::Sbas,
-            FixMode::DifferentialGnss | FixMode::FloatRtk | FixMode::FixedRtk => {
-                FixStatus::GroundBased
-            }
-        };
-
-        // create info from the basic stuff.
-        //
-        // we'll report `covariance` as all zeroes
-        let info = GpsInfo {
+        Some(GpsInfo {
+            // SBF PVTGeodetic latitude/longitude are in radians.
             coord: Coordinate {
-                lat: m.lat,
-                lon: m.lon,
+                lat: lat.to_degrees(),
+                lon: lon.to_degrees(),
             },
-            height: Height(m.height),
-            tow: TimeOfWeek(m.tow),
-            fix_status,
-            covariance: [0_f64; 9],
-        };
+            height: Height(height),
+            tow: TimeOfWeek(tow),
+            fix_status: mode_to_fix_status(msg.pvt_mode()),
+            covariance,
+        })
+    }
 
-        return Some(info);
+    fn mode_to_fix_status(mode: PvtMode) -> FixStatus {
+        match mode {
+            PvtMode::NoPvt => FixStatus::Invalid,
+            PvtMode::StandAlone | PvtMode::FixedLocation => FixStatus::SinglePoint,
+            PvtMode::Sbas => FixStatus::Sbas,
+            PvtMode::Differential
+            | PvtMode::RtkFixed
+            | PvtMode::RtkFloat
+            | PvtMode::MovingBaseRtkFixed
+            | PvtMode::MovingBaseRtkFloat
+            | PvtMode::Ppp => FixStatus::GroundBased,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Gps;
+    use libsbf::{reader::SbfReader, Messages};
+    use std::fs::File;
+
+    fn data_file(file_name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("data_files")
+            .join(file_name)
+    }
+
+    #[test]
+    fn inside_bay_contains_pvt_and_poscov_blocks() {
+        let file = File::open(data_file("inside_bay.sbf")).expect("sample file should open");
+        let reader = SbfReader::new(file);
+
+        let mut saw_pvt = false;
+        let mut saw_pos_cov = false;
+        for msg in reader {
+            let msg = msg.expect("inside_bay SBF should decode");
+            match msg {
+                Messages::PVTGeodetic(_) => saw_pvt = true,
+                Messages::PosCovGeodetic(_) => saw_pos_cov = true,
+                _ => {}
+            }
+
+            if saw_pvt && saw_pos_cov {
+                break;
+            }
+        }
+
+        assert!(saw_pvt, "inside_bay.sbf should contain PVTGeodetic");
+        assert!(saw_pos_cov, "inside_bay.sbf should contain PosCovGeodetic");
+    }
+
+    #[test]
+    fn parses_outside_bay_sample() {
+        let mut gps = Gps::new(data_file("outside_the_bay.sbf")).expect("sample file should open");
+        let info = gps
+            .get()
+            .expect("should parse at least one PVTGeodetic message");
+        assert!(info.coord.lat.is_finite());
+        assert!(info.coord.lon.is_finite());
     }
 }

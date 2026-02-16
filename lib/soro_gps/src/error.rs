@@ -9,6 +9,13 @@ pub enum GpsConnectionError {
         /// The given location.
         PathBuf,
     ),
+    /// The GPS path exists, but opening it as a serial source failed.
+    FailedToOpen(
+        /// The given location.
+        PathBuf,
+        /// Details from the OS/driver stack.
+        String,
+    ),
 }
 
 impl core::error::Error for GpsConnectionError {}
@@ -21,6 +28,12 @@ impl core::fmt::Display for GpsConnectionError {
                 "The GPS' serial output file representation was not found at \
                 the given location: `{}`",
                 serial_path.to_string_lossy()
+            ),
+            GpsConnectionError::FailedToOpen(serial_path, reason) => write!(
+                f,
+                "Failed to open GPS source at `{}`: {}",
+                serial_path.to_string_lossy(),
+                reason
             ),
         }
     }
