@@ -2,11 +2,12 @@
 This file runs all required nodes to speak with the Ebox.
 """
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import OpaqueFunction
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions.node import Node
-from rclpy.impl.rcutils_logger import RcutilsLogger
-from rclpy.node import get_logger
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -38,13 +39,38 @@ def generate_launch_description() -> LaunchDescription:
         executable="sensors_node",
     )
 
-    # TODO: implement the camera launch files, then replace this!
-    camera_warning: OpaqueFunction = OpaqueFunction(function=_warn_about_camera_todos)
+    # Unitree L2 LiDAR bridge package.
+    pkg_soro_lidar: str = get_package_share_directory("soro_lidar")
+    lidar_launch: IncludeLaunchDescription = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [
+                PathJoinSubstitution(
+                    [
+                        pkg_soro_lidar,
+                        "launch",
+                        "launch.py",
+                    ]
+                )
+            ]
+        )
+    )
 
-    return LaunchDescription([wheels_node, lights_node, sensors_node, camera_warning])
+    # See3CAM color stream for ArUco marker detection.
+    pkg_see3cam: str = get_package_share_directory("see3cam")
+    see3cam_launch: IncludeLaunchDescription = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [
+                PathJoinSubstitution(
+                    [
+                        pkg_see3cam,
+                        "launch",
+                        "see3cam.launch.py",
+                    ]
+                )
+            ]
+        )
+    )
 
-
-def _warn_about_camera_todos(_):
-    # we'll emit a diagnostic to remind ourselves lol
-    logger: RcutilsLogger = get_logger("ebox.launch.py")
-    _ = logger.error("TODO: implement cameras in launch file!")
+    return LaunchDescription(
+        [wheels_node, lights_node, sensors_node, lidar_launch, see3cam_launch]
+    )

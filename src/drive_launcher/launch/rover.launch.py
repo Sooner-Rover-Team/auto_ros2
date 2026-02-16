@@ -53,6 +53,9 @@ def generate_launch_description() -> LaunchDescription:
     # directly by our Navigator).
     robot_localization: IncludeLaunchDescription = _robot_localization(use_sim_time)
 
+    # Convert Unitree LiDAR point clouds into LaserScan for scan-based nodes
+    # (e.g., slam_toolbox and collision monitor).
+    lidar_to_laserscan: IncludeLaunchDescription = _lidar_to_laserscan(use_sim_time)
 
     # ok, so this part launches a few different things...
     #
@@ -111,6 +114,7 @@ def generate_launch_description() -> LaunchDescription:
             utm_conversion_node,
             robot_state_publisher,
             robot_localization,
+            lidar_to_laserscan,
             navigation_stack,
             ros2_control,
             Node(
@@ -187,7 +191,7 @@ def _navigation_bringup(
     )
 
 
-def _depthimage_to_laserscan(
+def _lidar_to_laserscan(
     use_sim_time: LaunchConfiguration,
 ) -> IncludeLaunchDescription:
     pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
@@ -199,7 +203,7 @@ def _depthimage_to_laserscan(
                         pkg_drive_launcher,
                         "launch",
                         "helpers",
-                        "depthimage_to_laserscan.launch.py",
+                        "lidar_to_laserscan.launch.py",
                     ]
                 )
             ]
