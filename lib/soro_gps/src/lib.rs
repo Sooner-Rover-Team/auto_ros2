@@ -312,13 +312,18 @@ mod parsing {
             return None;
         };
 
-        // PosCovGeodetic is in (lat, lon, hgt) axes. ROS NavSatFix expects
+        // PosCovGeodetic is in (lat, lon, height) axes. ROS NavSatFix expects
         // ENU covariance order [E, N, U] in row-major form.
         //
+        // For more information, see:
+        //
+        // - https://www.ros.org/reps/rep-0103.html
+        // - https://www.ros.org/reps/rep-0145.html
+        //
         // Axis mapping:
-        // E <- lon
-        // N <- lat
-        // U <- hgt
+        // E (East) <- lon
+        // N (North) <- lat
+        // U (Up) <- height
         let position_covariance = [
             cov_lonlon as f64,
             cov_latlon as f64,
