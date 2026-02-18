@@ -6,6 +6,18 @@
 /**:
   ros__parameters:
     qos_overrides:
+      /sensors/gps:
+        subscription:
+          reliability: best_effort
+          history: keep_last
+          depth: 10
+          durability: volatile
+      /sensors/imu:
+        subscription:
+          reliability: best_effort
+          history: keep_last
+          depth: 50
+          durability: volatile
       /odometry/filtered:
         subscription:
           reliability: reliable

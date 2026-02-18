@@ -7,6 +7,14 @@
 
 /**:
   ros__parameters:
+    qos_overrides:
+      /sensors/imu:
+        subscription:
+          reliability: best_effort
+          history: keep_last
+          depth: 50
+          durability: volatile
+
     # behavior
     two_d_mode: true
     publish_tf: false

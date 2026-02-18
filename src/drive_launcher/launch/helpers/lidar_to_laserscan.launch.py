@@ -21,7 +21,9 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[
             {
                 "use_sim_time": use_sim_time,
-                "target_frame": "base_link",
+                # keep scan in LiDAR frame to avoid unnecessary per-message TF
+                # transforms and message-filter backpressure.
+                "target_frame": "unilidar_lidar",
                 "transform_tolerance": 0.2,
                 "min_height": -0.5,
                 "max_height": 2.5,
@@ -32,6 +34,17 @@ def generate_launch_description() -> LaunchDescription:
                 "range_min": 0.3,
                 "range_max": 100.0,
                 "use_inf": True,
+                "queue_size": 50,
+                "qos_overrides": {
+                    "/scan": {
+                        "publisher": {
+                            "reliability": "reliable",
+                            "history": "keep_last",
+                            "depth": 10,
+                            "durability": "volatile",
+                        }
+                    }
+                },
             }
         ],
     )
