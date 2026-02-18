@@ -1,5 +1,7 @@
 <?xml version="1.0" ?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="remi">
+<xacro:arg name="ros2_control_plugin" default="fake_components/GenericSystem" />
+<xacro:arg name="use_gazebo_ros2_control" default="false" />
 
 <!--
 
@@ -331,9 +333,9 @@ makes a wheel joint for ros2_control.
         </sensor>
     </gazebo>
 
-    <ros2_control name="GazeboSimSystem" type="system">
+    <ros2_control name="RoverSystem" type="system">
       <hardware>
-        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        <plugin>$(arg ros2_control_plugin)</plugin>
       </hardware>
       <xacro:make_wheel_control_joint name="left_front" />
       <xacro:make_wheel_control_joint name="left_middle" />
@@ -343,9 +345,11 @@ makes a wheel joint for ros2_control.
       <xacro:make_wheel_control_joint name="right_back" />
     </ros2_control>
 
-    <gazebo>
-      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-        <parameters>$(find drive_launcher)/params/ros2_control/controllers.yaml</parameters>
-      </plugin>
-    </gazebo>
+    <xacro:if value="$(arg use_gazebo_ros2_control)">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>$(find drive_launcher)/params/ros2_control/controllers.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
 </robot>

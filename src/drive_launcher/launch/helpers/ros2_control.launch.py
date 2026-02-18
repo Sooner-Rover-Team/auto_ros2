@@ -9,8 +9,10 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     RegisterEventHandler,
+    TimerAction,
 )
-from launch.event_handlers import OnProcessExit, OnProcessStart
+from launch.conditions import IfCondition, UnlessCondition
+from launch.event_handlers import OnProcessStart
 from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
@@ -21,7 +23,21 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description() -> LaunchDescription:
     use_sim_time = LaunchConfiguration("use_sim_time")
+    start_controller_manager = LaunchConfiguration("start_controller_manager")
     controllers_conf: PathJoinSubstitution = _get_controllers_conf()
+
+    controller_manager = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[
+            controllers_conf,
+            {"use_sim_time": use_sim_time},
+        ],
+        remappings=[
+            ("~/robot_description", "/robot_description"),
+        ],
+        condition=IfCondition(start_controller_manager),
+    )
 
     # unfortunately, this dumb Node has to exist until we upgrade to Jazzy or
     # Kilted due to limitations in the Humble version of the
@@ -49,6 +65,8 @@ def generate_launch_description() -> LaunchDescription:
         executable="spawner",
         arguments=[
             "joint_state_broadcaster",
+            "--controller-manager",
+            "/controller_manager",
         ],
         parameters=[
             {"use_sim_time": use_sim_time},
@@ -60,6 +78,8 @@ def generate_launch_description() -> LaunchDescription:
         executable="spawner",
         arguments=[
             "diff_drive_controller",
+            "--controller-manager",
+            "/controller_manager",
             "--param-file",
             controllers_conf,
         ],
@@ -78,19 +98,43 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "use_sim_time",
             ),
-            spawn_joint_state_broadcaster,
+            DeclareLaunchArgument(
+                "start_controller_manager",
+                default_value="true",
+            ),
+            controller_manager,
+            TimerAction(
+                period=0.0,
+                actions=[spawn_joint_state_broadcaster],
+                condition=UnlessCondition(start_controller_manager),
+            ),
             #
-            # very important! only spawn controllers when the broadcast guy is up
+            # spawn controllers only when controller manager is up.
             RegisterEventHandler(
-                event_handler=OnProcessExit(
-                    target_action=spawn_joint_state_broadcaster,
-                    on_exit=[cmd_vel_remapping_relay],
-                )
+                event_handler=OnProcessStart(
+                    target_action=controller_manager,
+                    on_start=[spawn_joint_state_broadcaster],
+                ),
+                condition=IfCondition(start_controller_manager),
             ),
             RegisterEventHandler(
                 event_handler=OnProcessStart(
                     target_action=spawn_joint_state_broadcaster,
                     on_start=[spawn_diff_drive],
+                ),
+                condition=IfCondition(start_controller_manager),
+            ),
+            RegisterEventHandler(
+                event_handler=OnProcessStart(
+                    target_action=spawn_joint_state_broadcaster,
+                    on_start=[spawn_diff_drive],
+                ),
+                condition=UnlessCondition(start_controller_manager),
+            ),
+            RegisterEventHandler(
+                event_handler=OnProcessStart(
+                    target_action=spawn_diff_drive,
+                    on_start=[cmd_vel_remapping_relay],
                 )
             ),
         ]
