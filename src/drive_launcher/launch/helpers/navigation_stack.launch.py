@@ -4,6 +4,7 @@ from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     RegisterEventHandler,
+    TimerAction,
 )
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -89,6 +90,10 @@ def generate_launch_description() -> LaunchDescription:
     # the `slam_toolbox::async_slam_toolbox_node` fills the `/tf:map` and
     # `tf:odom` frames with our translated laserscan data.
     slam_toolbox: ExecuteProcess = _slam_toolbox(use_sim_time)
+    delayed_slam_toolbox: TimerAction = TimerAction(
+        period=2.5,
+        actions=[slam_toolbox],
+    )
 
     navigation_bringup_node: Node = Node(
         package="navigator",
@@ -108,7 +113,7 @@ def generate_launch_description() -> LaunchDescription:
             SetParameter("use_sim_time", use_sim_time),
             #
             # first, the toolbox
-            slam_toolbox,
+            delayed_slam_toolbox,
             #
             # after that, we can launch the lil watcher node
             RegisterEventHandler(
