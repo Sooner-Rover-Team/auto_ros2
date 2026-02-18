@@ -13,12 +13,12 @@ slam_toolbox:
     # publish the map
     publish_tf: true
     transform_publish_period: 0.02
-    transform_timeout: 0.2
-    tf_buffer_duration: 30.0
+    transform_timeout: 1.0
+    tf_buffer_duration: 60.0
     stack_size_to_use: 40000000
-    scan_buffer_size: 50 # we need this to avoid running outta buf space
-    throttle_scans: 5 # only read every `n`th scan.
-    minimum_time_interval: 0.3 # wait n seconds before processing again
+    scan_buffer_size: 100 # allow more queued scans while TF catches up
+    throttle_scans: 1 # process every scan for stable async mapping
+    minimum_time_interval: 0.1 # don't artificially hold scans too long
     use_map_saver: false
 
     # define tf2 frames
