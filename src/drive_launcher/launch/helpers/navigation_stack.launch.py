@@ -167,7 +167,11 @@ def _slam_toolbox(
             "drive_launcher",
             "slam_toolbox.launch.py",
             # 😮‍💨 yet another hack...
-            PythonExpression(["'use_sim_time:=' + str(", use_sim_time, ")"]),
+            # quote launch config value so PythonExpression doesn't evaluate
+            # `false`/`true` as Python names.
+            PythonExpression(
+                ["'use_sim_time:=' + str('", use_sim_time, "')"]
+            ),
         ],
         shell=True,
         output="screen",
