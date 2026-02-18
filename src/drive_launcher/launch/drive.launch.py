@@ -5,17 +5,19 @@ Starts everything the Rover needs to Autonomously navigate.
 """
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions.find_package import get_package_share_directory
 
 
 def generate_launch_description() -> LaunchDescription:
     pkg_drive_launcher: str = get_package_share_directory("drive_launcher")
+    use_sim_time = LaunchConfiguration("use_sim_time")
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument("use_sim_time", default_value="false"),
             # `rover.launch.py` is the ros 2 side of things.
             #
             # it includes stuff like Nav2 and `slam_toolbox` for interpreting
@@ -31,7 +33,8 @@ def generate_launch_description() -> LaunchDescription:
                             ]
                         )
                     ]
-                )
+                ),
+                launch_arguments=[("use_sim_time", use_sim_time)],
             ),
             #
             # and `ebox.launch.py` is the ebox <=> autonomous communication
