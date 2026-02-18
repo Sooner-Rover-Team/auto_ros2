@@ -16,9 +16,14 @@ def generate_launch_description() -> LaunchDescription:
     starts the `robot_state_publisher::robot_state_publisher` node.
     """
     use_sim_time = LaunchConfiguration("use_sim_time")
+    ros2_control_plugin = LaunchConfiguration("ros2_control_plugin")
+    use_gazebo_ros2_control = LaunchConfiguration("use_gazebo_ros2_control")
 
     # grab the rover's udrf
-    robot_desc: dict[str, ParameterValue] = _grab_robot_description()
+    robot_desc: dict[str, ParameterValue] = _grab_robot_description(
+        ros2_control_plugin=ros2_control_plugin,
+        use_gazebo_ros2_control=use_gazebo_ros2_control,
+    )
 
     # the `robot_state_publisher` node basically takes the various transform
     # differences defined in a URDF file and tells other nodes where stuff on
@@ -40,12 +45,23 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "use_sim_time",
             ),
+            DeclareLaunchArgument(
+                "ros2_control_plugin",
+                default_value="fake_components/GenericSystem",
+            ),
+            DeclareLaunchArgument(
+                "use_gazebo_ros2_control",
+                default_value="false",
+            ),
             rover_state_publisher_node,
         ]
     )
 
 
-def _grab_robot_description() -> dict[str, ParameterValue]:
+def _grab_robot_description(
+    ros2_control_plugin: LaunchConfiguration,
+    use_gazebo_ros2_control: LaunchConfiguration,
+) -> dict[str, ParameterValue]:
     """grabs the robot desc."""
 
     # make the description
@@ -60,6 +76,12 @@ def _grab_robot_description() -> dict[str, ParameterValue]:
                     "rover.urdf.xacro.xml",
                 ]
             ),
+            " ",
+            "ros2_control_plugin:=",
+            ros2_control_plugin,
+            " ",
+            "use_gazebo_ros2_control:=",
+            use_gazebo_ros2_control,
         ]
     )
 

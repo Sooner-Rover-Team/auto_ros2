@@ -30,7 +30,12 @@ def generate_launch_description():
                 )
             ],
         ),
-        launch_arguments=[("use_sim_time", use_sim_time)],
+        launch_arguments=[
+            ("use_sim_time", use_sim_time),
+            ("ros2_control_plugin", "gz_ros2_control/GazeboSimSystem"),
+            ("use_gazebo_ros2_control", "true"),
+            ("start_controller_manager", "false"),
+        ],
     )
 
     # launch all the gazebo stuff
