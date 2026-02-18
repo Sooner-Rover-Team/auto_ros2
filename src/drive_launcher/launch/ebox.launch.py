@@ -47,7 +47,6 @@ def generate_launch_description() -> LaunchDescription:
                 PathJoinSubstitution(
                     [
                         pkg_soro_lidar,
-                        "launch",
                         "launch.py",
                     ]
                 )
