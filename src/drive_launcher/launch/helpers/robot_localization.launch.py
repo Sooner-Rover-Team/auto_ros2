@@ -46,7 +46,7 @@ def generate_launch_description() -> LaunchDescription:
         # wihtout this (not great ergonomics lol)
         remappings=[
             ("/gps/fix", "/sensors/gps"),  # sensor_msgs::msg::NavSatFix
-            ("/imu/data", "/sensors/imu"),  # sensor_msgs::msg::Imu
+            ("/imu/data", "/unilidar/imu"),  # sensor_msgs::msg::Imu
             # (keep... /odometry/filtered), # sensor_msgs::msg::Odometry
         ],
     )
@@ -82,7 +82,7 @@ def generate_launch_description() -> LaunchDescription:
         respawn=True,
         remappings=[
             ("/gps/fix", "/sensors/gps"),  # sensor_msgs::msg::NavSatFix
-            ("/imu/data", "/sensors/imu"),  # sensor_msgs::msg::Imu
+            ("/imu/data", "/unilidar/imu"),  # sensor_msgs::msg::Imu
             # (keep... /odometry/filtered),
         ],
     )
@@ -118,7 +118,7 @@ def generate_launch_description() -> LaunchDescription:
         respawn=True,
         remappings=[
             ("/gps/fix", "/sensors/gps"),  # sensor_msgs::msg::NavSatFix
-            ("/imu/data", "/sensors/imu"),  # sensor_msgs::msg::Imu
+            ("/imu/data", "/unilidar/imu"),  # sensor_msgs::msg::Imu
             ("/odometry/filtered", "/ekf_filter_node_map/odometry/filtered"),
         ],
     )

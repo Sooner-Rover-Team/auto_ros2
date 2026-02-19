@@ -1,5 +1,5 @@
 # imu (accel/compass/gyro)
-- ros_topic_name: "/sensors/imu"
+- ros_topic_name: "/unilidar/imu"
   gz_topic_name: "/imu"
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"

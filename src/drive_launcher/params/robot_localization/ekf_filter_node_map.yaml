@@ -8,7 +8,7 @@
 /**:
   ros__parameters:
     qos_overrides:
-      /sensors/imu:
+      /unilidar/imu:
         subscription:
           reliability: best_effort
           history: keep_last
@@ -55,7 +55,7 @@
     # imu input.
     #
     # here, it provides heading and velo in the forward direction.
-    imu0: /sensors/imu
+    imu0: /unilidar/imu
     imu0_config:
       [
         false,
