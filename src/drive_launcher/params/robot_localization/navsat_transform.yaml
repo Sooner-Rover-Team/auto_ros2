@@ -12,7 +12,7 @@
           history: keep_last
           depth: 10
           durability: volatile
-      /sensors/imu:
+      /unilidar/imu:
         subscription:
           reliability: best_effort
           history: keep_last

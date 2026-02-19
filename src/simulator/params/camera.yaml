@@ -14,7 +14,7 @@
     qos_overrides./sensors/gps.publisher.durability: volatile
 
     # imu publisher
-    qos_overrides./sensors/imu.publisher.reliability: best_effort
-    qos_overrides./sensors/imu.publisher.history: keep_last
-    qos_overrides./sensors/imu.publisher.depth: 10
-    qos_overrides./sensors/imu.publisher.durability: volatile
+    qos_overrides./unilidar/imu.publisher.reliability: best_effort
+    qos_overrides./unilidar/imu.publisher.history: keep_last
+    qos_overrides./unilidar/imu.publisher.depth: 10
+    qos_overrides./unilidar/imu.publisher.durability: volatile
