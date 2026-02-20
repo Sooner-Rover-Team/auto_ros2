@@ -72,8 +72,6 @@ class NavigatorNode(Node):
     """
     _gps_subscription: Subscription
     """A subscriber to the GPS (NavSat) to know where the Rover is."""
-    _aruco_subscription: Subscription  # TODO: remove this
-    """Subscription to the `aruco_node` to understand what it's found so far."""
 
     _aruco_client: ActionClient
     """An action client for the `aruco_node` to understand what it's found so far and receive feedback."""
