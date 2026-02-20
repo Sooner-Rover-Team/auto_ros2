@@ -489,12 +489,17 @@ class NavigatorNode(Node):
             )
 
             # Case 1: Marker has been seen recently
-            if self._given_aruco_marker_id in self._aruco_action_feedback.marker_ids:
+            if (
+                self._given_aruco_marker_id in self._aruco_action_feedback.marker_ids
+                and self._given_aruco_marker_id is not None
+            ):
                 llogger.info("Marker seen!")
                 marker_index = self._aruco_action_feedback.marker_ids.index(
                     self._given_aruco_marker_id
                 )
-                marker_pose = self._aruco_action_feedback.marker_poses[marker_index]
+                marker_pose: Pose = self._aruco_action_feedback.marker_poses[
+                    marker_index
+                ]
 
                 (
                     tracking_marker,
@@ -703,9 +708,9 @@ class NavigatorNode(Node):
         # finally, set that type on the navigator class
         self._last_known_rover_coord = gp_stamped
 
-    def aruco_feedback_callback(self, feedback: FindArucoWithPose.Feedback):  # pyright: ignore[reportUnknownParameterType]
+    def aruco_feedback_callback(self, feedback: FindArucoWithPose.Feedback):
         # Store feedback
-        self._aruco_action_feedback = feedback.feedback
+        self._aruco_action_feedback = feedback
 
         # Log feedback (can remove later if this clogs our logs)
         llogger.debug(f"Received feedback from ArUco action server: {feedback}")
