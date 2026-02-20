@@ -233,7 +233,7 @@ class NavigatorNode(Node):
         return super().__hash__()
 
     # Function to send lights request given a LightsRequest class instance
-    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:
+    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:  # pyright: ignore[reportUnknownParameterType]
         """
         Send a request to the lights service to turn the lights red.
         """
@@ -464,7 +464,7 @@ class NavigatorNode(Node):
         last_received_feedback_time: Time | None = None
 
         # Variable to store the current search task, so we can cancel it if we lose the marker
-        current_search_task: asyncio.Task | None = None
+        current_search_task: asyncio.Task[None] | None = None
 
         while True:
             # Check if new feedback received. If not, wait and check again
@@ -544,8 +544,8 @@ class NavigatorNode(Node):
         tracking_marker: bool,
         marker_missed_count: int,
         marker_pose: Pose,
-        current_search_task: asyncio.Task | None,
-    ) -> tuple[bool, int, asyncio.Task | None]:
+        current_search_task: asyncio.Task[None] | None,
+    ) -> tuple[bool, int, asyncio.Task[None] | None]:
         """
         Handles logic for when the marker is seen in the ArUco feedback.
 
@@ -564,7 +564,7 @@ class NavigatorNode(Node):
 
             # If search task, cancel it and start new one to go to marker coordinate
             if current_search_task is not None:
-                current_search_task.cancel()
+                _ = current_search_task.cancel()
 
             llogger.info("Navigating to marker coordinate...")
 
@@ -582,8 +582,8 @@ class NavigatorNode(Node):
     async def _handle_marker_lost(
         self,
         marker_missed_count: int,
-        current_search_task: asyncio.Task | None,
-    ) -> tuple[bool, asyncio.Task | None]:
+        current_search_task: asyncio.Task[None] | None,
+    ) -> tuple[bool, asyncio.Task[None] | None]:
         """
         Handles logic for when the marker is not seen in the ArUco feedback but we were previously tracking it.
 
@@ -594,12 +594,12 @@ class NavigatorNode(Node):
         # If missed count is too high, cancel current search task and stop tracking
         if marker_missed_count > MARKER_MISSED_THRESHOLD:
             llogger.warning(
-                f"Marker lost after {marker_missed_count} consecutive missed detections. "
-                "Resuming search pattern."
+                f"Marker lost after {marker_missed_count} consecutive missed detections. \
+                Resuming search pattern."
             )
             # Cancel navigation to the lost marker
             if current_search_task is not None:
-                current_search_task.cancel()
+                _ = current_search_task.cancel()
                 current_search_task = None
 
             return False, current_search_task
@@ -613,8 +613,8 @@ class NavigatorNode(Node):
         self,
         current_location: GeoPoint,
         coordinate_queue: PriorityQueue[tuple[float, GeoPoint]],
-        current_search_task: asyncio.Task | None,
-    ) -> asyncio.Task | None:
+        current_search_task: asyncio.Task[None] | None,
+    ) -> asyncio.Task[None] | None:
         """
         Handles search pattern generation for ArUco logic when marker is not being tracked.
 
@@ -703,7 +703,7 @@ class NavigatorNode(Node):
         # finally, set that type on the navigator class
         self._last_known_rover_coord = gp_stamped
 
-    def aruco_feedback_callback(self, feedback: FindArucoWithPose.Feedback):
+    def aruco_feedback_callback(self, feedback: FindArucoWithPose.Feedback):  # pyright: ignore[reportUnknownParameterType]
         # Store feedback
         self._aruco_action_feedback = feedback.feedback
 
