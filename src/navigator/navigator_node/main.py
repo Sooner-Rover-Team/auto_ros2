@@ -1,4 +1,5 @@
 import asyncio
+from logging import exception
 import sys
 from dataclasses import dataclass
 from queue import PriorityQueue
@@ -233,7 +234,7 @@ class NavigatorNode(Node):
         return super().__hash__()
 
     # Function to send lights request given a LightsRequest class instance
-    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:  # pyright: ignore[reportUnknownParameterType]
+    def send_lights_request(self, lights_info: LightsRequest) -> LightsResponse | None:
         """
         Send a request to the lights service to turn the lights red.
         """
@@ -496,10 +497,18 @@ class NavigatorNode(Node):
                 llogger.info("Marker seen!")
                 marker_index = self._aruco_action_feedback.marker_ids.index(
                     self._given_aruco_marker_id
-                )
-                marker_pose: Pose = self._aruco_action_feedback.marker_poses[
-                    marker_index
-                ]
+                )  # pyright: ignore[reportArgumentType]
+
+                try:
+                    marker_pose: Pose = self._aruco_action_feedback.marker_poses[
+                        marker_index
+                    ]  # pyright: ignore[reportAssignmentType]
+                except Exception as e:
+                    llogger.error(
+                        f"Error retrieving marker pose from feedback: {e}. Skipping this feedback and waiting for the next one..."
+                    )
+                    await asyncio.sleep(0.5)
+                    continue
 
                 (
                     tracking_marker,
