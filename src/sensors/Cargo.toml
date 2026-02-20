@@ -23,7 +23,7 @@ tokio = { version = "1.42.0", features = [
 ] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-safe_drive = { version = "0.4.3", features = ["humble"] }
+safe_drive = { version = "0.4.3", features = ["jazzy"] }
 async-hid = { version = "0.4.0", features = [
     "tokio",
 ], default-features = false }
