@@ -2,7 +2,7 @@ import math
 
 import pytest
 from geographic_msgs.msg import GeoPoint
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose
 
 from navigator_node.coords import (
     coordinate_from_aruco_pose,
@@ -19,17 +19,17 @@ def make_geopoint(latitude: float, longitude: float, altitude: float) -> GeoPoin
     return pt
 
 
-def make_pose_stamped(x: float, y: float, z: float) -> PoseStamped:
-    pose = PoseStamped()
-    pose.pose.position.x = x
-    pose.pose.position.y = y
-    pose.pose.position.z = z
+def make_pose(x: float, y: float, z: float) -> Pose:
+    pose = Pose()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = z
     return pose
 
 
 def test_coordinate_from_aruco_pose_zero_offset_returns_same_lat_lon_and_alt():
     current = make_geopoint(35.0, -97.0, 123.4)
-    marker_pose = make_pose_stamped(0.0, 0.0, 0.0)
+    marker_pose = make_pose(0.0, 0.0, 0.0)
 
     output = coordinate_from_aruco_pose(current, marker_pose)
 
@@ -53,7 +53,7 @@ def test_coordinate_from_aruco_pose_preserves_meter_distance_and_altitude(
     north_offset_m: float, east_offset_m: float, up_offset_m: float
 ):
     current = make_geopoint(35.0, -97.0, 50.0)
-    marker_pose = make_pose_stamped(north_offset_m, east_offset_m, up_offset_m)
+    marker_pose = make_pose(north_offset_m, east_offset_m, up_offset_m)
 
     output = coordinate_from_aruco_pose(current, marker_pose)
 
@@ -71,10 +71,10 @@ def test_coordinate_from_aruco_pose_preserves_meter_distance_and_altitude(
 def test_coordinate_from_aruco_pose_axes_map_to_cardinal_directions():
     current = make_geopoint(35.0, -97.0, 0.0)
 
-    north = coordinate_from_aruco_pose(current, make_pose_stamped(5.0, 0.0, 0.0))
-    east = coordinate_from_aruco_pose(current, make_pose_stamped(0.0, 5.0, 0.0))
-    south = coordinate_from_aruco_pose(current, make_pose_stamped(-5.0, 0.0, 0.0))
-    west = coordinate_from_aruco_pose(current, make_pose_stamped(0.0, -5.0, 0.0))
+    north = coordinate_from_aruco_pose(current, make_pose(5.0, 0.0, 0.0))
+    east = coordinate_from_aruco_pose(current, make_pose(0.0, 5.0, 0.0))
+    south = coordinate_from_aruco_pose(current, make_pose(-5.0, 0.0, 0.0))
+    west = coordinate_from_aruco_pose(current, make_pose(0.0, -5.0, 0.0))
 
     assert north.latitude > current.latitude
     assert east.longitude > current.longitude

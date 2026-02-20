@@ -16,9 +16,7 @@ from geopy.point import Point as GeopyPoint
 from loguru import logger as llogger
 
 
-def coordinate_from_aruco_pose(
-    current_location: GeoPoint, pose: Pose
-) -> GeoPoint:
+def coordinate_from_aruco_pose(current_location: GeoPoint, pose: Pose) -> GeoPoint:
     """
     Given the Rover's current location and the ArUco marker's current pose,
     this function calculates an approximate coordinate for the marker.
@@ -48,9 +46,7 @@ def coordinate_from_aruco_pose(
     # - distance in meters from rover to marker
     # - bearing in degrees clockwise from North (what geopy expects)
     distance_to_marker_m: float = math.hypot(north_offset_m, east_offset_m)
-    marker_bearing_deg: float = math.degrees(
-        math.atan2(east_offset_m, north_offset_m)
-    )
+    marker_bearing_deg: float = math.degrees(math.atan2(east_offset_m, north_offset_m))
 
     # Convert current ROS `GeoPointStamped.position` -> geopy `Point` (lat, lon).
     current_geopy_point: GeopyPoint = GeopyPoint(
@@ -127,9 +123,7 @@ def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
     ).meters
 
     # log and return
-    llogger.trace(
-        f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m"
-    )
+    llogger.trace(f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m")
     return dist_m
 
 
