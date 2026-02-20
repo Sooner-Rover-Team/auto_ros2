@@ -16,7 +16,7 @@ class NavigationParameters:
     """
     The radius of the circle we want the Rover to drive around.
     """
-    
+
     search_points: int
     """
     How many coordinates to generate (i.e. how many points should the circle 
