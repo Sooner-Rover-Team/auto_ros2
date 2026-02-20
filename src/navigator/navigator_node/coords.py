@@ -7,7 +7,6 @@ translations to the physical Rover.
 """
 
 import math
-import sys
 from math import sqrt
 
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
@@ -17,7 +16,9 @@ from geopy.point import Point as GeopyPoint
 from loguru import logger as llogger
 
 
-def coordinate_from_aruco_pose(_current_location: GeoPoint, _pose: Pose) -> GeoPoint:
+def coordinate_from_aruco_pose(
+    current_location: GeoPoint, pose: Pose
+) -> GeoPoint:
     """
     Given the Rover's current location and the ArUco marker's current pose,
     this function calculates an approximate coordinate for the marker.
@@ -29,11 +30,49 @@ def coordinate_from_aruco_pose(_current_location: GeoPoint, _pose: Pose) -> GeoP
     we can use that and the distance to the marker to calculate the estimated
     coordinate.
     """
-    _marker_position: Point = _pose.position
-    _marker_orientation = _pose.orientation
+    marker_position: Point = pose.position
 
-    llogger.error("coordinate estimation is unimplemented!")
-    sys.exit(1)
+    # `PoseStamped.position` from `aruco_node` is Rover-local translation in meters.
+    #
+    # We treat:
+    # - `position.x` as North/South offset meters (+North),
+    # - `position.y` as East/West offset meters (+East),
+    #
+    # then convert those meter offsets to geodesic `distance` + `bearing`.
+    north_offset_m: float = marker_position.x
+    east_offset_m: float = marker_position.y
+    up_offset_m: float = marker_position.z
+
+    # Convert Cartesian rover-local meters -> polar meters/degrees:
+    #
+    # - distance in meters from rover to marker
+    # - bearing in degrees clockwise from North (what geopy expects)
+    distance_to_marker_m: float = math.hypot(north_offset_m, east_offset_m)
+    marker_bearing_deg: float = math.degrees(
+        math.atan2(east_offset_m, north_offset_m)
+    )
+
+    # Convert current ROS `GeoPointStamped.position` -> geopy `Point` (lat, lon).
+    current_geopy_point: GeopyPoint = GeopyPoint(
+        current_location.latitude,
+        current_location.longitude,
+    )
+
+    # Convert Rover coordinate + (distance, bearing) -> destination geodesic
+    # point.
+    estimated_geopy_point: GeopyPoint = distance(
+        meters=distance_to_marker_m
+    ).destination(current_geopy_point, bearing=marker_bearing_deg)
+
+    # Convert geopy destination type -> ROS `GeoPoint`.
+    estimated_marker_coord: GeoPoint = GeoPoint()
+    estimated_marker_coord.latitude = estimated_geopy_point.latitude
+    estimated_marker_coord.longitude = estimated_geopy_point.longitude
+
+    # Preserve absolute altitude by adding local vertical offset in meters.
+    estimated_marker_coord.altitude = current_location.altitude + up_offset_m
+
+    return estimated_marker_coord
 
 
 def get_distance_to_marker(marker: Pose) -> float:
@@ -88,7 +127,9 @@ def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
     ).meters
 
     # log and return
-    llogger.trace(f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m")
+    llogger.trace(
+        f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m"
+    )
     return dist_m
 
 
