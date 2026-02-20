@@ -494,14 +494,14 @@ class NavigatorNode(Node):
                 and self._given_aruco_marker_id is not None
             ):
                 llogger.info("Marker seen!")
-                marker_index = self._aruco_action_feedback.marker_ids.index(
+                marker_index = self._aruco_action_feedback.marker_ids.index(  # pyright: ignore[reportArgumentType]
                     self._given_aruco_marker_id
-                )  # pyright: ignore[reportArgumentType]
+                )
 
                 try:
                     marker_pose: Pose = self._aruco_action_feedback.marker_poses[
-                        marker_index
-                    ]  # pyright: ignore[reportAssignmentType]
+                        marker_index  # pyright: ignore[reportAssignmentType]
+                    ]
                 except Exception as e:
                     llogger.error(
                         f"Error retrieving marker pose from feedback: {e}. Skipping this feedback and waiting for the next one..."
