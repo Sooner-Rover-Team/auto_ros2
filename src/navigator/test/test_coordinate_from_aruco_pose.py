@@ -1,22 +1,22 @@
 import math
 
 import pytest
-from geographic_msgs.msg import GeoPoint, GeoPointStamped
+from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PoseStamped
-from navigator_node.coords import coordinate_from_aruco_pose, dist_m_between_coords
+
+from navigator_node.coords import (
+    coordinate_from_aruco_pose,
+    dist_m_between_coords,
+)
 
 
-def make_geopoint_stamped(
-    latitude: float, longitude: float, altitude: float
-) -> GeoPointStamped:
-    pt = GeoPoint()
+def make_geopoint(latitude: float, longitude: float, altitude: float) -> GeoPoint:
+    pt: GeoPoint = GeoPoint()
     pt.latitude = latitude
     pt.longitude = longitude
     pt.altitude = altitude
 
-    stamped = GeoPointStamped()
-    stamped.position = pt
-    return stamped
+    return pt
 
 
 def make_pose_stamped(x: float, y: float, z: float) -> PoseStamped:
@@ -28,14 +28,14 @@ def make_pose_stamped(x: float, y: float, z: float) -> PoseStamped:
 
 
 def test_coordinate_from_aruco_pose_zero_offset_returns_same_lat_lon_and_alt():
-    current = make_geopoint_stamped(35.0, -97.0, 123.4)
+    current = make_geopoint(35.0, -97.0, 123.4)
     marker_pose = make_pose_stamped(0.0, 0.0, 0.0)
 
     output = coordinate_from_aruco_pose(current, marker_pose)
 
-    assert output.latitude == pytest.approx(current.position.latitude)
-    assert output.longitude == pytest.approx(current.position.longitude)
-    assert output.altitude == pytest.approx(current.position.altitude)
+    assert output.latitude == pytest.approx(current.latitude)
+    assert output.longitude == pytest.approx(current.longitude)
+    assert output.altitude == pytest.approx(current.altitude)
 
 
 @pytest.mark.parametrize(
@@ -52,31 +52,31 @@ def test_coordinate_from_aruco_pose_zero_offset_returns_same_lat_lon_and_alt():
 def test_coordinate_from_aruco_pose_preserves_meter_distance_and_altitude(
     north_offset_m: float, east_offset_m: float, up_offset_m: float
 ):
-    current = make_geopoint_stamped(35.0, -97.0, 50.0)
+    current = make_geopoint(35.0, -97.0, 50.0)
     marker_pose = make_pose_stamped(north_offset_m, east_offset_m, up_offset_m)
 
     output = coordinate_from_aruco_pose(current, marker_pose)
 
     expected_distance_m = math.hypot(north_offset_m, east_offset_m)
-    horizontal_distance_m = dist_m_between_coords(current.position, output)
+    horizontal_distance_m = dist_m_between_coords(current, output)
 
     # Geodesic destination should preserve the rover-local horizontal displacement magnitude.
     assert horizontal_distance_m == pytest.approx(
         expected_distance_m, rel=1e-6, abs=1e-6
     )
     # Vertical offset is mapped directly to GeoPoint altitude delta.
-    assert output.altitude == pytest.approx(current.position.altitude + up_offset_m)
+    assert output.altitude == pytest.approx(current.altitude + up_offset_m)
 
 
 def test_coordinate_from_aruco_pose_axes_map_to_cardinal_directions():
-    current = make_geopoint_stamped(35.0, -97.0, 0.0)
+    current = make_geopoint(35.0, -97.0, 0.0)
 
     north = coordinate_from_aruco_pose(current, make_pose_stamped(5.0, 0.0, 0.0))
     east = coordinate_from_aruco_pose(current, make_pose_stamped(0.0, 5.0, 0.0))
     south = coordinate_from_aruco_pose(current, make_pose_stamped(-5.0, 0.0, 0.0))
     west = coordinate_from_aruco_pose(current, make_pose_stamped(0.0, -5.0, 0.0))
 
-    assert north.latitude > current.position.latitude
-    assert east.longitude > current.position.longitude
-    assert south.latitude < current.position.latitude
-    assert west.longitude < current.position.longitude
+    assert north.latitude > current.latitude
+    assert east.longitude > current.longitude
+    assert south.latitude < current.latitude
+    assert west.longitude < current.longitude
