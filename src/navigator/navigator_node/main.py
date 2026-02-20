@@ -2,6 +2,7 @@ import asyncio
 import sys
 from dataclasses import dataclass
 from queue import PriorityQueue
+from typing import cast
 
 import rclpy
 from builtin_interfaces.msg import Time
@@ -488,20 +489,21 @@ class NavigatorNode(Node):
                 self._aruco_action_feedback.time_last_image_arrived
             )
 
+            marker_ids = cast(list[int], list(self._aruco_action_feedback.marker_ids))
+            marker_poses = cast(
+                list[Pose], list(self._aruco_action_feedback.marker_poses)
+            )
+
             # Case 1: Marker has been seen recently
             if (
-                self._given_aruco_marker_id in self._aruco_action_feedback.marker_ids
-                and self._given_aruco_marker_id is not None
+                self._given_aruco_marker_id is not None
+                and self._given_aruco_marker_id in marker_ids
             ):
                 llogger.info("Marker seen!")
-                marker_index = self._aruco_action_feedback.marker_ids.index(  # pyright: ignore[reportArgumentType]
-                    self._given_aruco_marker_id
-                )
+                marker_index = marker_ids.index(self._given_aruco_marker_id)
 
                 try:
-                    marker_pose: Pose = self._aruco_action_feedback.marker_poses[
-                        marker_index  # pyright: ignore[reportAssignmentType]
-                    ]
+                    marker_pose: Pose = marker_poses[marker_index]
                 except Exception as e:
                     llogger.error(
                         f"Error retrieving marker pose from feedback: {e}. Skipping this feedback and waiting for the next one..."
