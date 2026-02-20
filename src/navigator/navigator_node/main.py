@@ -186,7 +186,7 @@ class NavigatorNode(Node):
 
         if search_radius <= 0:
             raise ValueError("Radius must be positive")
-        
+
         if search_points < 3:
             raise ValueError("Must be 3 or more points to create circle")
 
@@ -195,7 +195,7 @@ class NavigatorNode(Node):
             coord=coord,
             mode=NavigationMode(mode_int),
             search_radius=search_radius,
-            search_points=search_points
+            search_points=search_points,
         )
         _ = self.get_logger().debug("constructed all parameters.")
 
