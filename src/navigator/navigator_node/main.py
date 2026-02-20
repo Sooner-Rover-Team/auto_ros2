@@ -638,11 +638,11 @@ class NavigatorNode(Node):
         Returns the current navigation task.
         """
 
-        self.declare_parameter("search_radius", 10.0)
-        self.declare_parameter("search_points", 10)
+        _ = self.declare_parameter("search_radius", 10.0)
+        _ = self.declare_parameter("search_points", 10)
 
-        search_radius = self.get_parameter("search_radius").value
-        search_points = self.get_parameter("search_points").value
+        search_radius = float(self.get_parameter("search_radius").value)
+        search_points = int(self.get_parameter("search_points").value)
 
         self.nav_params = NavigationParameters(
             search_radius=search_radius,

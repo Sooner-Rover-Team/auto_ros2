@@ -12,18 +12,18 @@ class NavigationMode(Enum):
 
 @dataclass(kw_only=True)
 class NavigationParameters:
-    search_radius: float
+    search_radius: float | None = None
     """
     The radius of the circle we want the Rover to drive around.
     """
 
-    search_points: int
+    search_points: int | None = None
     """
     How many coordinates to generate (i.e. how many points should the circle 
     of coordinates be made of)
     """
 
-    coord: GeoPoint
+    coord: GeoPoint | None = None
     """
     The coordinate that either is our goal (if `mode` is `GPS`), or is some
     point around an ArUco marker or an object.
@@ -37,7 +37,7 @@ class NavigationParameters:
     https://docs.opencv.org/3.4/d9/d6a/group__aruco.html#ggac84398a9ed9dd01306592dd616c2c975ada8e830ff0024e839e93c01f5fed0c55
     """
 
-    mode: NavigationMode
+    mode: NavigationMode | None = None
     """
     Indicates what the Navigator is doing.
 
