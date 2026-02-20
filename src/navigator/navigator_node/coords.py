@@ -92,6 +92,7 @@ def dist_m_between_coords(coord1: GeoPoint, coord2: GeoPoint) -> float:
     llogger.trace(f"dist from coord 1 ({coord1}) and coord 2 ({coord2}) is: {dist_m}m")
     return dist_m
 
+
 def generate_similar_coordinates(
     src: GeoPoint, radius: float, num_points: int
 ) -> list[GeoPoint]:
