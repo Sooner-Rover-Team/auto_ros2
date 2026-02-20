@@ -174,9 +174,7 @@ def _slam_toolbox(
             # 😮‍💨 yet another hack...
             # quote launch config value so PythonExpression doesn't evaluate
             # `false`/`true` as Python names.
-            PythonExpression(
-                ["'use_sim_time:=' + str('", use_sim_time, "')"]
-            ),
+            PythonExpression(["'use_sim_time:=' + str('", use_sim_time, "')"]),
         ],
         shell=True,
         output="screen",
