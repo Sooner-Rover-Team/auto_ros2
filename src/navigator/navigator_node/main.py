@@ -170,10 +170,32 @@ class NavigatorNode(Node):
             )
             sys.exit(1)
 
+        # Declare search parameters
+        _ = self.declare_parameter("search_radius", 10.0)
+        _ = self.declare_parameter("search_points", 10)
+
+        search_radius_raw = self.get_parameter("search_radius").value
+        search_points_raw = self.get_parameter("search_points").value
+
+        if search_radius_raw is None or search_points_raw is None:
+            self.get_logger().error("No search paramaters set")
+            sys.exit(1)
+
+        search_radius = float(search_radius_raw)
+        search_points = int(search_points_raw)
+
+        if search_radius <= 0:
+            raise ValueError("Radius must be positive")
+        
+        if search_points < 3:
+            raise ValueError("Must be 3 or more points to create circle")
+
         # construct the parameters
         self.nav_parameters = NavigationParameters(
             coord=coord,
             mode=NavigationMode(mode_int),
+            search_radius=search_radius,
+            search_points=search_points
         )
         _ = self.get_logger().debug("constructed all parameters.")
 
@@ -638,23 +660,6 @@ class NavigatorNode(Node):
         Returns the current navigation task.
         """
 
-        _ = self.declare_parameter("search_radius", 10.0)
-        _ = self.declare_parameter("search_points", 10)
-
-        search_radius = float(self.get_parameter("search_radius").value)
-        search_points = int(self.get_parameter("search_points").value)
-
-        self.nav_params = NavigationParameters(
-            search_radius=search_radius,
-            search_points=search_points,
-        )
-
-        if search_radius <= 0:
-            raise ValueError("Radius must be positive")
-
-        if search_points < 3:
-            raise ValueError("Must have 3 or more points to make circle")
-
         # Check if queue empty
         if coordinate_queue.empty():
             # Generate new search coordinates around current location
@@ -662,8 +667,8 @@ class NavigatorNode(Node):
 
             similar_coords = generate_similar_coordinates(
                 current_location,
-                radius=self.nav_params.search_radius,
-                num_points=self.nav_params.search_points,
+                radius=self.nav_parameters.search_radius,
+                num_points=self.nav_parameters.search_points,
             )
 
             # Add coordinates to queue, prioritized by distance to current location
