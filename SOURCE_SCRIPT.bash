@@ -13,6 +13,11 @@ echo "Sourcing ROS 2 environment files..."
 echo "Done!"
 echo
 
+echo "Setting \`ROS_DISTRO\` environment variable as required by \`safe_drive\`..."
+export ROS_DISTRO=humble
+echo "Done!"
+echo
+
 echo "Setting Nav2-compatible ROS middleware implementation..."
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 echo "Done!"
