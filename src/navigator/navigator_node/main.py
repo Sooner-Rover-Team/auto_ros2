@@ -1,5 +1,4 @@
 import asyncio
-from logging import exception
 import sys
 from dataclasses import dataclass
 from queue import PriorityQueue
