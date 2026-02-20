@@ -11,14 +11,13 @@ import sys
 from math import sqrt
 
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, Pose
 from geopy.distance import distance
+from geopy.point import Point as GeopyPoint
 from loguru import logger as llogger
 
 
-def coordinate_from_aruco_pose(
-    _current_location: GeoPointStamped, _pose: PoseStamped
-) -> GeoPoint:
+def coordinate_from_aruco_pose(_current_location: GeoPoint, _pose: Pose) -> GeoPoint:
     """
     Given the Rover's current location and the ArUco marker's current pose,
     this function calculates an approximate coordinate for the marker.
@@ -30,19 +29,19 @@ def coordinate_from_aruco_pose(
     we can use that and the distance to the marker to calculate the estimated
     coordinate.
     """
-    _marker_position: Point = _pose.pose.position
-    _marker_orientation = _pose.pose.orientation
+    _marker_position: Point = _pose.position
+    _marker_orientation = _pose.orientation
 
     llogger.error("coordinate estimation is unimplemented!")
     sys.exit(1)
 
 
-def get_distance_to_marker(marker: PoseStamped) -> float:
+def get_distance_to_marker(marker: Pose) -> float:
     """
     Given the pose information for an ArUco marker relative to the rover,
     calculate the distance to the marker
     """
-    marker_position: Point = marker.pose.position
+    marker_position: Point = marker.position
     distance_x: float = marker_position.x  # forward/backward distance
     distance_y: float = marker_position.y  # left/right distance
 
@@ -110,8 +109,8 @@ def generate_similar_coordinates(
         angle = (360 / num_points) * i  # Evenly spaced angles around a circle
 
         # Calculates a new coordinate that is the given amount of meters away from source
-        point: Point = distance(meters=radius).destination(
-            Point(src.latitude, src.longitude), bearing=angle
+        point: GeopyPoint = distance(meters=radius).destination(
+            GeopyPoint(src.latitude, src.longitude), bearing=angle
         )
 
         # make that into a `GeoPoint` msg
