@@ -36,7 +36,7 @@ class NavigationParameters:
     https://docs.opencv.org/3.4/d9/d6a/group__aruco.html#ggac84398a9ed9dd01306592dd616c2c975ada8e830ff0024e839e93c01f5fed0c55
     """
 
-    mode: NavigationMode | None = None
+    mode: NavigationMode
     """
     Indicates what the Navigator is doing.
 

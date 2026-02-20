@@ -179,7 +179,7 @@ class NavigatorNode(Node):
 
         if search_radius_raw is None or search_points_raw is None:
             self.get_logger().error("No search paramaters set.")
-            sys.exit(1)
+            raise SystemExit(1)
 
         search_radius = float(search_radius_raw)
         search_points = int(search_points_raw)
