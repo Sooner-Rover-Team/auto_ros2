@@ -1,10 +1,12 @@
 # NVIDIA Jetson Orin Nano Setup
 
-INTRO: TODO. (...the Jetson is a small portable computer for robotics, etc. etc.)
+The [NVIDIA Jetson Orin Nano](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/nano-super-developer-kit/), which we call "the Jetson", is a small portable computer for robotics. In essence, it's the brain of the Rover, running all of our Autonomous code, the Rover map, video streamer, and more!
+
+The Jetson is just a computer running Linux, a free operating system. Specifically, it ships with an flavor called "Ubuntu".
 
 It comes with a modified (and very slow) version of Ubuntu by default. That's called Jetpack, and we don't use it due to the high overhead incurred with their default setup.
 
-We use a special image of Ubuntu Server 22.04 LTS ([download link](https://ubuntu.com/download/nvidia-jetson), [installation + setup documentation](https://pages.ubuntu.com/rs/066-EOV-335/images/Ubuntu_22.04_for_NVIDIA_Jetson_Installation_instructions.pdf)) to address this problem and have better control over the computer, though the setup process is more involved.
+Instead, we use a special image of Ubuntu Server 22.04 LTS ([download link](https://ubuntu.com/download/nvidia-jetson), [installation + setup documentation](https://pages.ubuntu.com/rs/066-EOV-335/images/Ubuntu_22.04_for_NVIDIA_Jetson_Installation_instructions.pdf)) to address performance problems and have better control over the computer, though the setup process is more involved.
 
 ## First-Time Setup
 
@@ -43,3 +45,7 @@ When it's done restarting, SSH back in and check if `nvidia-smi` shows info on C
 TODO: instructions on using SSH
 
 TODO: instructions on setting up ZeroTier to communicate over the school network, and usage of the router for local networking
+
+## Specifications
+
+We have the `T234` model of Jetson. You can [find its specifications online](https://nvdam.widen.net/s/zkfqjmtds2/jetson-orin-datasheet-nano-developer-kit-3575392-r2).
