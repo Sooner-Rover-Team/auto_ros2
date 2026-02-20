@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from queue import PriorityQueue
 
 import rclpy
+from builtin_interfaces.msg import Time
+from custom_interfaces.action import FindArucoWithPose
 from custom_interfaces.srv import GnssToMap, Lights
 from custom_interfaces.srv._gnss_to_map import GnssToMap_Response
 from custom_interfaces.srv._lights import (
@@ -12,20 +14,17 @@ from custom_interfaces.srv._lights import (
 from custom_interfaces.srv._lights import (
     Lights_Response as LightsResponse,
 )
-from builtin_interfaces.msg import Time
-from custom_interfaces.action import FindArucoWithPose
-
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
-from geometry_msgs.msg import Point, PoseStamped, Twist
+from geometry_msgs.msg import Point, Pose, PoseStamped, Twist
 from loguru import logger as llogger
 from nav2_simple_commander.robot_navigator import BasicNavigator
 from rcl_interfaces.msg import ParameterType
+from rclpy.action.client import ActionClient
 from rclpy.client import Client
 from rclpy.node import (
     Node,
     ParameterDescriptor,
 )
-from rclpy.action.client import ActionClient
 from rclpy.publisher import Publisher
 from rclpy.qos import QoSPresetProfiles, QoSProfile
 from rclpy.subscription import Subscription
@@ -33,9 +32,9 @@ from sensor_msgs.msg import NavSatFix
 from typing_extensions import override
 
 from .coords import (
+    coordinate_from_aruco_pose,
     dist_m_between_coords,
     generate_similar_coordinates,
-    coordinate_from_aruco_pose,
     get_distance_to_marker,
 )
 from .pose import geopoint_to_pose
@@ -99,7 +98,7 @@ class NavigatorNode(Node):
 
     _last_known_rover_coord: GeoPointStamped | None = None
     """The coordinate last recv'd from the GPS."""
-    _last_known_marker_coord: GeoPointStamped | None = None
+    _last_known_marker_coord: GeoPoint | None = None
     """Coordinate pair where the target was last known to be located."""
     _gps_to_map_client: Client
     """A client to speak with the `utm_conversion_node`."""
@@ -107,7 +106,7 @@ class NavigatorNode(Node):
     _aruco_action_feedback: FindArucoWithPose.Feedback | None = None
     """A variable to store the latest feedback from the ArUco action server."""
 
-    _curr_marker_transform: PoseStamped | None = None
+    _curr_marker_transform: Pose | None = None
     """
     The location of the ArUco marker relative to the Rover.
 
@@ -447,12 +446,9 @@ class NavigatorNode(Node):
             return
 
         # Start async search task
-        try:
-            await self._search_for_aruco()
-        finally:
-            # Cancel the goal once we've found the marker and reached it
-            _ = self._aruco_client.cancel_all_goals_async()
-            llogger.info("ArUco navigation complete!")
+        await self._search_for_aruco()
+
+        llogger.info("ArUco navigation complete!")
 
     async def _search_for_aruco(self):
         """
@@ -505,6 +501,7 @@ class NavigatorNode(Node):
                     marker_missed_count,
                     current_search_task,
                 ) = await self._handle_marker_seen(
+                    self._last_known_rover_coord.position,
                     tracking_marker,
                     marker_missed_count,
                     marker_pose,
@@ -524,7 +521,10 @@ class NavigatorNode(Node):
                 # Increment missed count
                 marker_missed_count += 1
 
-                tracking_marker, current_search_task = await self._handle_marker_lost(
+                (
+                    tracking_marker,
+                    current_search_task,
+                ) = await self._handle_marker_lost(
                     marker_missed_count,
                     current_search_task,
                 )
@@ -533,15 +533,17 @@ class NavigatorNode(Node):
             else:
                 # Not tracking, time to search
                 current_search_task = await self._handle_search_mode(
+                    self._last_known_rover_coord.position,
                     coordinate_queue,
                     current_search_task,
                 )
 
     async def _handle_marker_seen(
         self,
+        current_location: GeoPoint,
         tracking_marker: bool,
         marker_missed_count: int,
-        marker_pose: PoseStamped,
+        marker_pose: Pose,
         current_search_task: asyncio.Task | None,
     ) -> tuple[bool, int, asyncio.Task | None]:
         """
@@ -556,7 +558,7 @@ class NavigatorNode(Node):
 
             # Convert marker pose to coordinate
             self._last_known_marker_coord = coordinate_from_aruco_pose(
-                self._last_known_rover_coord,
+                current_location,
                 marker_pose,
             )
 
@@ -565,9 +567,10 @@ class NavigatorNode(Node):
                 current_search_task.cancel()
 
             llogger.info("Navigating to marker coordinate...")
+
             # Start new search task to go to marker coordinate
             current_search_task = asyncio.create_task(
-                self._go_to_coordinate(self._last_known_marker_coord.position)
+                self._go_to_coordinate(current_location)
             )
         # If already tracking the marker, check distance to coordinate
         else:
@@ -608,6 +611,7 @@ class NavigatorNode(Node):
 
     async def _handle_search_mode(
         self,
+        current_location: GeoPoint,
         coordinate_queue: PriorityQueue[tuple[float, GeoPoint]],
         current_search_task: asyncio.Task | None,
     ) -> asyncio.Task | None:
@@ -626,21 +630,17 @@ class NavigatorNode(Node):
         # Check if queue empty
         if coordinate_queue.empty():
             # Generate new search coordinates around current location
-            llogger.debug(
-                f"Generating search pattern around: {self._last_known_rover_coord.position}"
-            )
+            llogger.debug(f"Generating search pattern around: {current_location}")
 
             similar_coords = generate_similar_coordinates(
-                self._last_known_rover_coord.position,
+                current_location,
                 radius=SEARCH_RADIUS,
                 num_points=SEARCH_POINTS,
             )
 
             # Add coordinates to queue, prioritized by distance to current location
             for coord in similar_coords:
-                distance_to_coord = dist_m_between_coords(
-                    self._last_known_rover_coord.position, coord
-                )
+                distance_to_coord = dist_m_between_coords(current_location, coord)
                 coordinate_queue.put((distance_to_coord, coord))
 
             llogger.debug(f"Added {len(similar_coords)} search points to queue")
