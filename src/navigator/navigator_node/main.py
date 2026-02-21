@@ -190,12 +190,27 @@ class NavigatorNode(Node):
         if search_points < 3:
             raise ValueError("Must be 3 or more points to create circle")
 
+        # Marker Missed Threshold parameter
+        _ = self.declare_parameter("marker_missed_threshold", 20)
+
+        threshold_raw = self.get_parameter("marker_missed_threshold").value
+
+        if threshold_raw is None:
+            _ = self.get_logger().error("marker_missed_threshold not set")
+            raise SystemExit(1)
+
+        marker_missed_threshold = int(threshold_raw)
+
+        if marker_missed_threshold <= 0:
+            raise ValueError("Threshold must be positive")
+
         # construct the parameters
         self.nav_parameters = NavigationParameters(
             coord=coord,
             mode=NavigationMode(mode_int),
             search_radius=search_radius,
             search_points=search_points,
+            marker_missed_threshold=marker_missed_threshold,
         )
         _ = self.get_logger().debug("constructed all parameters.")
 
@@ -624,10 +639,9 @@ class NavigatorNode(Node):
 
         Returns updated values for parent function.
         """
-        MARKER_MISSED_THRESHOLD = 20  # TODO: Make this a parameter
 
         # If missed count is too high, cancel current search task and stop tracking
-        if marker_missed_count > MARKER_MISSED_THRESHOLD:
+        if marker_missed_count > self.nav_parameters.marker_missed_threshold:
             llogger.warning(
                 f"Marker lost after {marker_missed_count} consecutive missed detections. \
                 Resuming search pattern."
