@@ -45,7 +45,7 @@ impl Wheels {
             right,
 
             // see electrical ebox teensy code
-            checksum: 255_u8.overflowing_add(left + right).0,
+            checksum: 255_u8.wrapping_add(left.wrapping_add(right)),
         }
     }
 }

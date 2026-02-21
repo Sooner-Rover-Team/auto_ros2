@@ -2,23 +2,37 @@ import sys
 from dataclasses import dataclass
 
 import rclpy
+from custom_interfaces.srv import GnssToMap
+from custom_interfaces.srv._gnss_to_map import (
+    GnssToMap_Request,
+    GnssToMap_Response,
+)
 from geodesy import utm
 from geodesy.utm import UTMPoint as UtmPoint
 from geometry_msgs.msg import Point
 from loguru import logger as llogger
 from nav_msgs.msg import Odometry
 from rclpy.node import Node, Service, Subscription
-from rclpy.qos import QoSPresetProfiles, QoSProfile
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSPresetProfiles,
+    QoSProfile,
+    QoSReliabilityPolicy,
+)
 from sensor_msgs.msg import NavSatFix
 from typing_extensions import override
 
-from custom_interfaces.srv import GnssToMap
-from custom_interfaces.srv._gnss_to_map import (
-    GnssToMap_Request,
-    GnssToMap_Response,
+GPS_QOS_PROFILE: QoSProfile = QoSProfile(
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=5,
+    durability=QoSDurabilityPolicy.VOLATILE,
 )
 
-QOS_PROFILE: QoSProfile = QoSPresetProfiles.SENSOR_DATA.value
+ODOM_QOS_PROFILE: QoSProfile = QoSPresetProfiles.SENSOR_DATA.value
+ODOM_QOS_PROFILE.reliability = QoSReliabilityPolicy.RELIABLE
+ODOM_QOS_PROFILE.depth = 10
 
 
 @dataclass(kw_only=True)
@@ -37,7 +51,7 @@ class UtmConversionNode(Node):
             NavSatFix,
             "/sensors/gps",
             self._on_filtered_gps_message,
-            QOS_PROFILE,
+            GPS_QOS_PROFILE,
         )
 
         # also, grab odom stream
@@ -45,7 +59,7 @@ class UtmConversionNode(Node):
             Odometry,
             "/odometry/filtered",
             self._on_odom_message,
-            QOS_PROFILE,
+            ODOM_QOS_PROFILE,
         )
 
         # finally, make a service to convert gnss coords -> map coords
@@ -67,9 +81,17 @@ class UtmConversionNode(Node):
         self, req: GnssToMap_Request, resp: GnssToMap_Response
     ) -> GnssToMap_Response:
         # if we don't have the offset, early return...
-        if self._last_known_odom is None or self._last_known_utm is None:
+        if self._last_known_odom is None:
             llogger.warning(
-                "srv called, but utm/odom isn't available yet. try again in a moment..."
+                "srv called, but `odom` (`/odometry/filtered`) isn't available yet. \
+                try again in a moment..."
+            )
+            resp.success = False
+            return resp
+        if self._last_known_utm is None:
+            llogger.warning(
+                "srv called, and `odom` is available, but `utm` (`/sensors/gps`) isn't available yet. \
+                try again in a moment..."
             )
             resp.success = False
             return resp

@@ -180,7 +180,7 @@ class NavigatorNode(Node):
         # create a service client for lights node
         self._lights_client = self.create_client(
             srv_type=Lights,
-            srv_name="/control/lights",
+            srv_name="lights_service",
         )
 
         # wait for the lights service to come up
@@ -741,23 +741,28 @@ def main(args: list[str] | None = None):
     rclpy.init(args=args)
     navigator_node: NavigatorNode = NavigatorNode()
 
-    # spin the ros 2 node and run our logic... at the same time!
+    # Spin the ROS 2 node and run navigation logic concurrently.
     #
-    # for more info, see: https://github.com/m2-farzan/ros2-asyncio
-    future = asyncio.wait(
-        [
-            asyncio.create_task(ros_spin(navigator_node)),
-            asyncio.create_task(navigator_node.navigator()),
-        ]
-    )
-    _ = asyncio.get_event_loop().run_until_complete(future)
+    # `asyncio.create_task` requires a running loop, so we enter async context
+    # with `asyncio.run(...)` first.
+    async def _run() -> None:
+        _ = await asyncio.gather(
+            ros_spin(navigator_node),
+            navigator_node.navigator(),
+        )
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        llogger.info("Navigator interrupted; shutting down.")
 
     # destroy the Node explicitly
     #
     # this is optional - otherwise, the garbage collector does it automatically
     # when it runs.
     navigator_node.destroy_node()
-    rclpy.shutdown()
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 def shutdown(n: NavigatorNode):

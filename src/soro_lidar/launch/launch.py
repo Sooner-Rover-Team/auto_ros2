@@ -20,7 +20,7 @@ def generate_launch_description():
             {"work_mode": 0},
             {"use_system_timestamp": True},
             {"publish_tf": False},
-            {"range_min": 0.0},
+            {"range_min": 1.2},
             {"range_max": 100.0},
             {"cloud_scan_num": 18},
             {
