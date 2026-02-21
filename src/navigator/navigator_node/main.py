@@ -180,7 +180,7 @@ class NavigatorNode(Node):
         # create a service client for lights node
         self._lights_client = self.create_client(
             srv_type=Lights,
-            srv_name="/control/lights",
+            srv_name="lights_service",
         )
 
         # wait for the lights service to come up
