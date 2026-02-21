@@ -170,10 +170,47 @@ class NavigatorNode(Node):
             )
             sys.exit(1)
 
+        # Declare search parameters
+        _ = self.declare_parameter("search_radius", 10.0)
+        _ = self.declare_parameter("search_points", 10)
+
+        search_radius_raw = self.get_parameter("search_radius").value
+        search_points_raw = self.get_parameter("search_points").value
+
+        if search_radius_raw is None or search_points_raw is None:
+            _ = self.get_logger().error("No search paramaters set.")
+            raise SystemExit(1)
+
+        search_radius = float(search_radius_raw)
+        search_points = int(search_points_raw)
+
+        if search_radius <= 0:
+            raise ValueError("Radius must be positive")
+
+        if search_points < 3:
+            raise ValueError("Must be 3 or more points to create circle")
+
+        # Marker Missed Threshold parameter
+        _ = self.declare_parameter("marker_missed_threshold", 20)
+
+        threshold_raw = self.get_parameter("marker_missed_threshold").value
+
+        if threshold_raw is None:
+            _ = self.get_logger().error("marker_missed_threshold not set")
+            raise SystemExit(1)
+
+        marker_missed_threshold = int(threshold_raw)
+
+        if marker_missed_threshold <= 0:
+            raise ValueError("Threshold must be positive")
+
         # construct the parameters
         self.nav_parameters = NavigationParameters(
             coord=coord,
             mode=NavigationMode(mode_int),
+            search_radius=search_radius,
+            search_points=search_points,
+            marker_missed_threshold=marker_missed_threshold,
         )
         _ = self.get_logger().debug("constructed all parameters.")
 
@@ -602,10 +639,9 @@ class NavigatorNode(Node):
 
         Returns updated values for parent function.
         """
-        MARKER_MISSED_THRESHOLD = 20  # TODO: Make this a parameter
 
         # If missed count is too high, cancel current search task and stop tracking
-        if marker_missed_count > MARKER_MISSED_THRESHOLD:
+        if marker_missed_count > self.nav_parameters.marker_missed_threshold:
             llogger.warning(
                 f"Marker lost after {marker_missed_count} consecutive missed detections. \
                 Resuming search pattern."
@@ -637,8 +673,6 @@ class NavigatorNode(Node):
 
         Returns the current navigation task.
         """
-        SEARCH_RADIUS = 10.0  # meters - TODO: Make this a parameter
-        SEARCH_POINTS = 10  # TODO: Make this a parameter
 
         # Check if queue empty
         if coordinate_queue.empty():
@@ -647,8 +681,8 @@ class NavigatorNode(Node):
 
             similar_coords = generate_similar_coordinates(
                 current_location,
-                radius=SEARCH_RADIUS,
-                num_points=SEARCH_POINTS,
+                radius=self.nav_parameters.search_radius,
+                num_points=self.nav_parameters.search_points,
             )
 
             # Add coordinates to queue, prioritized by distance to current location

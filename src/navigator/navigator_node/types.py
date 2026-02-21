@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-
 from geographic_msgs.msg import GeoPoint
 
 
@@ -12,6 +11,17 @@ class NavigationMode(Enum):
 
 @dataclass(kw_only=True)
 class NavigationParameters:
+    search_radius: float
+    """
+    The radius of the circle we want the Rover to drive around.
+    """
+
+    search_points: int
+    """
+    How many coordinates to generate (i.e. how many points should the circle 
+    of coordinates be made of)
+    """
+
     coord: GeoPoint
     """
     The coordinate that either is our goal (if `mode` is `GPS`), or is some
@@ -32,4 +42,10 @@ class NavigationParameters:
 
     For example, if we're given `NavigationMode::GPS`, we'll navigate to the given GPS
     coordinate and stop when we're there.
+    """
+
+    marker_missed_threshold: int
+    """
+    Decides how many times a marker is missed before we decide that us seeing it
+    was a false positive and we stop trying to track it.
     """
