@@ -199,9 +199,9 @@ controller_server:
     #
     # see: https://docs.nav2.org/tutorials/docs/navigation2_with_gps.html#setup-navigation-system
     rolling_window: True
-    resolution: 0.75
-    width: 2000
-    height: 2000
+    resolution: 0.25
+    width: 8000
+    height: 8000
 
     # allow higher latency from sensors
     transform_tolerance: 2.0
