@@ -92,4 +92,4 @@ def _calc_object_pose_inner(
         cv_to_robot @ translation_vector
     ).flatten()
 
-    return (orientation_quaternion, translation_robot)
+    return (translation_robot, orientation_quaternion)
