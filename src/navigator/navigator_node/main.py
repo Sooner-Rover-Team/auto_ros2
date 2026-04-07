@@ -743,13 +743,23 @@ def main(args: list[str] | None = None):
 
     # Spin the ROS 2 node and run navigation logic concurrently.
     #
-    # `asyncio.create_task` requires a running loop, so we enter async context
-    # with `asyncio.run(...)` first.
+    # Important: all task creation must happen from inside a running loop.
     async def _run() -> None:
-        _ = await asyncio.gather(
-            ros_spin(navigator_node),
-            navigator_node.navigator(),
-        )
+        loop = asyncio.get_running_loop()
+        ros_spin_task = loop.create_task(ros_spin(navigator_node))
+        navigator_task = loop.create_task(navigator_node.navigator())
+
+        try:
+            _ = await asyncio.gather(ros_spin_task, navigator_task)
+        finally:
+            for task in (ros_spin_task, navigator_task):
+                if not task.done():
+                    _ = task.cancel()
+            _ = await asyncio.gather(
+                ros_spin_task,
+                navigator_task,
+                return_exceptions=True,
+            )
 
     try:
         asyncio.run(_run())

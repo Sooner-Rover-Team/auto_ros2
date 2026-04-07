@@ -54,10 +54,10 @@ class UtmConversionNode(Node):
             GPS_QOS_PROFILE,
         )
 
-        # also, grab odom stream
+        # also, grab the map frame's odom stream
         self._odom_subscriber = self.create_subscription(
             Odometry,
-            "/odometry/filtered",
+            "/ekf_filter_node_map/odometry/filtered",
             self._on_odom_message,
             ODOM_QOS_PROFILE,
         )
