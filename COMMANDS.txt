@@ -1,0 +1,25 @@
+# NAVIGATOR: to the right of bay door
+ros2 run navigator navigator_node --ros-args -p latitude:=35.2101718 -p longitude:=-97.4414963 -p mode:=0
+
+# NAVIGATOR: straight ahead of bay door
+ros2 run navigator navigator_node --ros-args -p latitude:=35.2103225 -p longitude:=-97.4411651 -p mode:=0
+
+# NAVIGATOR: end of repf closest segment
+ros2 run navigator navigator_node --ros-args -p latitude:=35.2105681 -p longitude:=-97.4419394 -p mode:=0
+
+# NAVIGATOR: aruco marker placed in equad (2026-02-25 5:09 PM)
+ros2 run navigator navigator_node --ros-args -p latitude:=35.2103889 -p longitude:=-97.4418893 -p mode:=0
+
+# NAVIGATOR: aruco marker placed in equad (2026-02-25 6:08 PM)
+ros2 run navigator navigator_node --ros-args -p latitude:=35.2106322 -p longitude:=-97.4419303 -p mode:=0
+
+ros2 launch drive_launcher rover.launch.py use_sim_time:=False
+
+ros2 launch drive_launcher ebox.launch.py
+
+
+# For RVIZ:
+# terminal 1
+Xvfb :99 -screen 0 1920x1080x24 & export DISPLAY=:99 & gnome-session --session=ubuntu & rviz2
+# terminal 2
+x11vnc -display :99
