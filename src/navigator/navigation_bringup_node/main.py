@@ -89,11 +89,12 @@ class NavigationBringupNode(Node):
 
     def _on_wheel_speeds_timer_tick(self):
         # decide which speeds to publish
-        wheel_speed: Twist = Twist()
-        wheel_speed.linear.x = MOVEMENT_SPEED
+        # wheel_speed: Twist = Twist()
+        # wheel_speed.linear.x = MOVEMENT_SPEED
 
         # ...publish them.
-        self._wheels_publisher.publish(wheel_speed)
+        # self._wheels_publisher.publish(wheel_speed)
+        pass
 
     def stop_wheels(self):
         if rclpy.ok():
