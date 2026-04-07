@@ -8,6 +8,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     launch_rviz = LaunchConfiguration("launch_rviz")
+    range_min = LaunchConfiguration("range_min")
 
     # Run unitree lidar
     node1 = Node(
@@ -20,7 +21,7 @@ def generate_launch_description():
             {"work_mode": 0},
             {"use_system_timestamp": True},
             {"publish_tf": False},
-            {"range_min": 1.2},
+            {"range_min": range_min},
             {"range_max": 100.0},
             {"cloud_scan_num": 18},
             {
@@ -54,6 +55,8 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("launch_rviz", default_value="false"),
+            # we won't detect stuff within 1.1 meters
+            DeclareLaunchArgument("range_min", default_value="1.1"),
             node1,
             rviz_node,
         ]
