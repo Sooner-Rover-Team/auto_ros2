@@ -240,7 +240,7 @@ class ArucoNode(Node):
         recv_time: Time = self.get_clock().now().to_msg()
 
         # convert the ROS 2 `Image` into an OpenCV `Mat`
-        cv_image: cv.Mat = self.bridge.imgmsg_to_cv2(image)  # pyright: ignore[reportAssignmentType]
+        cv_image: cv.Mat = self.bridge.imgmsg_to_cv2(image, desired_encoding="bgr8")  # pyright: ignore[reportAssignmentType]
 
         # check for markers visible in the image
         dect_res = self.detect_aruco_markers(cv_image)
