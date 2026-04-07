@@ -28,6 +28,12 @@ pub use point_stamped::*;
 pub mod polygon;
 pub use polygon::*;
 
+pub mod polygon_instance;
+pub use polygon_instance::*;
+
+pub mod polygon_instance_stamped;
+pub use polygon_instance_stamped::*;
+
 pub mod polygon_stamped;
 pub use polygon_stamped::*;
 
