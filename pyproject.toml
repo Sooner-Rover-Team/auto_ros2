@@ -31,6 +31,7 @@ exclude = [
     "src/**/build/",
     "**/__pycache__",
     "**/.*",
+    "src/aruco/extra_scripts/aruco_visualizer.py",
 ]
 
 [tool.pixi.workspace]
