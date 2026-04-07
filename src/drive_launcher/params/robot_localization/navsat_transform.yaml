@@ -4,60 +4,61 @@
 # `global_odom` file's `ekf_filter_node_map` node.
 
 /**:
-  ros__parameters:
-    qos_overrides:
-      /sensors/gps:
-        subscription:
-          reliability: best_effort
-          history: keep_last
-          depth: 10
-          durability: volatile
-      /unilidar/imu:
-        subscription:
-          reliability: best_effort
-          history: keep_last
-          depth: 50
-          durability: volatile
-      /odometry/filtered:
-        subscription:
-          reliability: reliable
-          history: keep_last
-          depth: 10
-          durability: volatile
+    ros__parameters:
+        qos_overrides:
+            /sensors/gps:
+                subscription:
+                    reliability: best_effort
+                    history: keep_last
+                    depth: 10
+                    durability: volatile
+            /unilidar/imu:
+                subscription:
+                    reliability: best_effort
+                    history: keep_last
+                    depth: 50
+                    durability: volatile
+            /odometry/filtered:
+                subscription:
+                    reliability: reliable
+                    history: keep_last
+                    depth: 10
+                    durability: volatile
 
-    # timing
-    frequency: 5.0
-    delay: 0.2
+        # timing
+        frequency: 5.0
+        delay: 0.2
 
-    # behavior
-    enable: true
-    # ...note: this is positive in both Utah and Oklahoma.
-    #
-    # Norman, OK is closer to ~64 deg., while Hanksville, UT is around ~10 deg.
-    #
-    # make sure to convert to radians when using another value!
-    # magnetic_declination_radians: 0.1745329
-    # ...an offset makes the imu zero (when facing east).
-    #
-    # our imu can use `0.0`, since it works like that naturally :D
-    yaw_offset: 0.0
-    zero_altitude: false
-    use_odometry_yaw: false
+        # behavior
+        enable: true
+        # ...note: this is positive in both Utah and Oklahoma.
+        #
+        # Norman, OK is closer to ~64 deg., while Hanksville, UT is around ~10 deg.
+        #
+        # make sure to convert to radians when using another value!
+        # magnetic_declination_radians: 0.1745329
+        # ...an offset makes the imu zero (when facing east).
+        #
+        # calibrated on rover with Unitree L2 IMU; see scripts/get_navsat_yaw_offset.sh
+        # yaw_offset: -1.40399
+        yaw_offset: 0.0
+        zero_altitude: false
+        use_odometry_yaw: false
 
-    # node rules
-    #
-    # ... when `true`, this puts the utm frame in the chain. we need it to
-    # translate coordinates into map-local values
-    broadcast_cartesian_transform: false
-    broadcast_cartesian_transform_as_parent_frame: false
-    publish_filtered_gps: true
-    wait_for_datum: false
+        # node rules
+        #
+        # ... when `true`, this puts the utm frame in the chain. we need it to
+        # translate coordinates into map-local values
+        broadcast_cartesian_transform: false
+        broadcast_cartesian_transform_as_parent_frame: false
+        publish_filtered_gps: true
+        wait_for_datum: false
 
-    # frame config
-    map_frame: map
-    odom_frame: odom
-    base_link_frame: base_link
-    earth_frame: earth
+        # frame config
+        map_frame: map
+        odom_frame: odom
+        base_link_frame: base_link
+        earth_frame: earth
 
-    # we'll get gps messages with *this* frame_id:
-    frame_id: gps_link
+        # we'll get gps messages with *this* frame_id:
+        frame_id: gps_link

@@ -62,11 +62,11 @@ controller_server:
       debug_trajectory_details: true
       min_vel_x: 0.35
       min_vel_y: 0.0
-      max_vel_x: 3.5
+      max_vel_x: 2.5
       max_vel_y: 0.0
       max_vel_theta: 1.0
       min_speed_xy: 0.0
-      max_speed_xy: 3.5
+      max_speed_xy: 2.5
       min_speed_theta: 0.0
       acc_lim_x: 3.5
       acc_lim_y: 0.0
@@ -200,8 +200,8 @@ controller_server:
     # see: https://docs.nav2.org/tutorials/docs/navigation2_with_gps.html#setup-navigation-system
     rolling_window: True
     resolution: 0.25
-    width: 8000
-    height: 8000
+    width: 1000
+    height: 1000
 
     # allow higher latency from sensors
     transform_tolerance: 2.0
@@ -326,8 +326,8 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [3.5, 0.0, 2.0]
-    min_velocity: [-3.5, 0.0, -2.0]
+    max_velocity: [2.5, 0.0, 2.0]
+    min_velocity: [-2.5, 0.0, -2.0]
     max_accel: [3.5, 0.0, 3.2]
     max_decel: [-3.5, 0.0, -3.2]
     odom_topic: "odom"

@@ -28,7 +28,10 @@
     debug: false
     debug_out_file: rl_ekf_filter_node_odom.log
 
-    # configure imu for local usage
+    # configure imu for local usage.
+    #
+    # use yaw rate only; direct yaw can freeze heading if orientation output is
+    # stale while gyro values keep changing.
     imu0: /unilidar/imu
     imu0_config:
       [
@@ -37,7 +40,7 @@
         false,
         false,
         false,
-        true,
+        false,
         false,
         false,
         false,
